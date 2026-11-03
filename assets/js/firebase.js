@@ -7,12 +7,12 @@ import { getStorage } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-s
 // Isi dari Firebase Console > Project settings > Your apps > Web app.
 // Konfigurasi web bukan pengganti Security Rules; jangan pernah menaruh service-account key di frontend.
 export const firebaseConfig = {
-  apiKey: "GANTI_API_KEY",
-  authDomain: "GANTI_PROJECT_ID.firebaseapp.com",
-  projectId: "GANTI_PROJECT_ID",
-  storageBucket: "GANTI_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "GANTI_SENDER_ID",
-  appId: "GANTI_APP_ID"
+  apiKey: "AIzaSyDkvhM55aMtCgtkpEhUv_K1TqCMwgFwDFM",
+  authDomain: "si-edkk.firebaseapp.com",
+  projectId: "si-edkk",
+  storageBucket: "si-edkk.firebasestorage.app",
+  messagingSenderId: "893524689366",
+  appId: "1:893524689366:web:a8a2cc39815dc17cfa6477"
 };
 const configured = !Object.values(firebaseConfig).some(v => String(v).startsWith("GANTI_"));
 export const app = configured ? initializeApp(firebaseConfig) : null;
