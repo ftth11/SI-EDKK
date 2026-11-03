@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0d6575">
+  <meta name="description" content="Sistem Informasi Etik dan Disiplin Komite Keperawatan UPTD RSUD Kelas D Pondokgede">
+  <title>SI-EDKK | UPTD RSUD Kelas D Pondokgede</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./assets/images/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./assets/css/main.css">
+</head>
+<body>
+  <div id="app">
+    <section id="loginView" class="login-shell">
+      <div class="login-card">
+        <div class="brand-mark">✚</div>
+        <p class="eyebrow">UPTD RSUD KELAS D PONDOKGEDE</p>
+        <h1>SI-EDKK</h1>
+        <p class="muted">Sistem Informasi Etik dan Disiplin Komite Keperawatan</p>
+        <form id="loginForm">
+          <label>Email</label><input id="loginEmail" type="email" autocomplete="username" required>
+          <label>Kata sandi</label><input id="loginPassword" type="password" autocomplete="current-password" required>
+          <button class="btn primary full" type="submit">Masuk</button>
+          <p id="loginError" class="form-error" role="alert"></p>
+        </form>
+        <a class="small-link" href="./pelaporan.html">Formulir pelaporan kasus</a>
+        <p class="tiny muted">Akses internal. Gunakan akun yang diberikan administrator.</p>
+      </div>
+    </section>
+    <section id="appView" class="app-shell hidden">
+      <aside class="sidebar" id="sidebar">
+        <div class="side-brand"><span class="brand-mark small">✚</span><div><b>SI-EDKK</b><small>Komite Keperawatan</small></div></div>
+        <nav id="mainNav">
+          <button data-page="dashboard" class="nav-item active">▦ <span>Dashboard</span></button>
+          <button data-page="pelaporan" class="nav-item">＋ <span>Pelaporan Kasus</span></button>
+          <button data-page="kasus" class="nav-item">▤ <span>Manajemen Kasus</span></button>
+          <button data-page="dokumen" class="nav-item">▧ <span>Dokumen & Akreditasi</span></button>
+          <button data-page="monitoring" class="nav-item">◷ <span>Monitoring & Evaluasi</span></button>
+          <button data-page="program" class="nav-item">▣ <span>Program & Kegiatan</span></button>
+          <button data-page="database" class="nav-item">▥ <span>Database Kasus</span></button>
+          <button data-page="pengaturan" class="nav-item admin-only">⚙ <span>Pengaturan</span></button>
+        </nav>
+        <div class="side-footer"><span class="status-dot"></span> Sistem terhubung<br><small>Data rahasia dan terbatas</small></div>
+      </aside>
+      <main class="main-area">
+        <header class="topbar">
+          <button id="menuToggle" class="icon-btn" aria-label="Buka menu">☰</button>
+          <div><p class="eyebrow">UPTD RSUD KELAS D PONDOKGEDE</p><h2 id="pageTitle">Dashboard</h2></div>
+          <div class="top-actions"><button id="themeToggle" class="icon-btn" title="Ganti tema">◐</button><div class="user-chip"><span class="avatar">U</span><span><b id="userName">Pengguna</b><small id="userRole">User</small></span></div><button id="logoutBtn" class="btn subtle">Keluar</button></div>
+        </header>
+        <div id="pageContent" class="page-content"></div>
+        <footer class="app-footer">SI-EDKK · UPTD RSUD Kelas D Pondokgede <span>Versi 1.0</span></footer>
+      </main>
+    </section>
+    <div id="toast" class="toast" role="status"></div>
+  </div>
+  <script type="module" src="./assets/js/app.js"></script>
+</body>
+</html>

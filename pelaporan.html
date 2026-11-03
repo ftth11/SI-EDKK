@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0d6575"><title>Pelaporan Kasus | SI-EDKK</title><link rel="stylesheet" href="./assets/css/main.css"><link rel="manifest" href="./manifest.json"></head>
+<body class="public-page"><main class="public-wrap"><a href="./index.html" class="back-link">← Kembali ke SI-EDKK</a><section class="panel public-card"><div class="brand-mark">✚</div><p class="eyebrow">UPTD RSUD KELAS D PONDOKGEDE</p><h1>Formulir Pelaporan</h1><p class="muted">Gunakan formulir ini untuk menyampaikan dugaan permasalahan etik atau disiplin keperawatan. Informasi ditangani secara terbatas oleh pihak berwenang.</p>
+<form id="publicReportForm" class="form-grid">
+<label>Jenis laporan<select name="jenis" required><option value="">Pilih jenis</option><option>Etik</option><option>Disiplin</option><option>Etik dan Disiplin</option></select></label>
+<label>Identitas pelapor<select name="modePelapor" id="modePelapor"><option value="anonim">Anonim</option><option value="teridentifikasi">Teridentifikasi</option></select></label>
+<div id="identityFields" class="full hidden"><label>Nama pelapor</label><input name="namaPelapor"><label>Email/nomor kontak (opsional)</label><input name="kontakPelapor"></div>
+<label>Unit/lokasi kejadian<input name="unit" required maxlength="120"></label>
+<label>Tanggal kejadian<input name="tanggalKejadian" type="date" required></label>
+<label class="full">Uraian kejadian<textarea name="uraian" rows="6" required minlength="20" maxlength="6000" placeholder="Tuliskan kronologi secara faktual, jelas, dan tidak menyertakan informasi yang tidak relevan."></textarea></label>
+<label class="full">Pihak/unit terkait (hindari data pasien yang tidak diperlukan)<input name="pihakTerkait" maxlength="500"></label>
+<label class="full check"><input type="checkbox" required> Saya menyatakan laporan ini disampaikan dengan itikad baik dan informasi yang saya berikan benar menurut pengetahuan saya.</label>
+<button class="btn primary full" type="submit">Kirim laporan</button><p id="reportMessage" class="full muted" role="status"></p>
+</form><p class="tiny muted">Jangan masukkan diagnosis, nomor rekam medis, foto pasien, atau data pribadi pasien kecuali benar-benar diperlukan dan telah disetujui sesuai kebijakan rumah sakit.</p></section></main><script type="module" src="./assets/js/public-report.js"></script></body></html>
