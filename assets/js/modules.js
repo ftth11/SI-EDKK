@@ -20,6 +20,7 @@ const MAX_PHOTO_BYTES = 1500000;
 const pageTitles = {
   dashboard: "Dashboard",
   pelaporan: "Pelaporan Kasus",
+  laporan: "Daftar Laporan",
   kasus: "Manajemen Kasus",
   dokumen: "Dokumen & Akreditasi",
   monitoring: "Monitoring & Evaluasi",
@@ -88,6 +89,7 @@ export async function renderPage(page, profile) {
   try {
     if (page === "dashboard") return await dashboard(host, profile);
     if (page === "pelaporan") return reportPage(host, profile);
+    if (page === "laporan") return reportlistPage(host, profile);
 
     if (page === "kasus" || page === "database") {
       return caseList(host, page === "database");
@@ -731,6 +733,527 @@ function reportPage(host, profile) {
   });
 
   renderPhotoPreview();
+}
+
+
+// =====================================================
+// DAFTAR LAPORAN ADMIN / KOMITE
+// =====================================================
+
+const COMMITTEE_ROLES = [
+  "Admin",
+  "Ketua Komite",
+  "Sekretaris",
+  "Anggota Komite"
+];
+
+const CASE_CONVERT_ROLES = [
+  "Admin",
+  "Ketua Komite",
+  "Sekretaris"
+];
+
+async function reportApi(path, options = {}) {
+  if (!auth?.currentUser) {
+    throw new Error("Sesi login berakhir. Silakan login kembali.");
+  }
+
+  const token = await auth.currentUser.getIdToken();
+
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      ...(options.body instanceof FormData
+        ? {}
+        : { "Content-Type": "application/json" }),
+      Authorization: `Bearer ${token}`,
+      ...options.headers
+    }
+  });
+
+  if (!response.ok && options.method === "GET" &&
+      path.startsWith("/evidence?")) {
+    throw new Error("Bukti foto tidak dapat dibuka atau akses ditolak.");
+  }
+
+  const contentType = response.headers.get("Content-Type") || "";
+
+  if (contentType.startsWith("image/")) {
+    if (!response.ok) {
+      throw new Error("Gagal mengambil foto bukti.");
+    }
+
+    return await response.blob();
+  }
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok || result.success === false) {
+    throw new Error(result.error || "Permintaan ke server gagal.");
+  }
+
+  return result;
+}
+
+function reportListPage(host, profile) {
+  if (!COMMITTEE_ROLES.includes(profile?.role)) {
+    host.innerHTML = `
+      <div class="notice warning">
+        Anda tidak memiliki hak akses untuk melihat daftar laporan.
+      </div>`;
+    return;
+  }
+
+  host.innerHTML = `
+    <div class="page-intro">
+      <div>
+        <h1>Daftar Laporan</h1>
+        <p class="muted">
+          Tinjau laporan masuk sebelum diproses menjadi kasus.
+        </p>
+      </div>
+
+      <button class="btn subtle" id="refreshReports">
+        ↻ Muat ulang
+      </button>
+    </div>
+
+    <div class="stats-grid">
+      <article class="stat-card">
+        <span>Total ditampilkan</span>
+        <b id="reportTotal">0</b>
+        <small>Maksimal 50 laporan terbaru</small>
+      </article>
+
+      <article class="stat-card">
+        <span>Belum ditinjau</span>
+        <b id="reportNew">0</b>
+        <small>Status Baru</small>
+      </article>
+
+      <article class="stat-card">
+        <span>Sudah dikonversi</span>
+        <b id="reportConverted">0</b>
+        <small>Menjadi kasus</small>
+      </article>
+    </div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h3>Filter laporan</h3>
+      </div>
+
+      <div class="form-grid report-filter-grid">
+        <label>
+          Cari laporan
+          <input
+            type="search"
+            id="reportSearch"
+            placeholder="Nomor atau nama pelapor..."
+          >
+        </label>
+
+        <label>
+          Unit/lokasi
+          <select id="reportUnitFilter">
+            <option value="">Semua unit</option>
+            ${UNIT_OPTIONS.map(unit => `
+              <option value="${escapeHtml(unit)}">
+                ${escapeHtml(unit)}
+              </option>
+            `).join("")}
+          </select>
+        </label>
+
+        <label>
+          Status
+          <select id="reportStatusFilter">
+            <option value="">Semua status</option>
+            <option value="Baru">Baru</option>
+            <option value="Dikonversi">Dikonversi</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h3>Laporan masuk</h3>
+        <span class="pill" id="reportResultCount">0 laporan</span>
+      </div>
+
+      <div id="reportTableContainer">
+        <div class="empty">Memuat daftar laporan...</div>
+      </div>
+    </section>
+
+    <div id="reportDetailContainer"></div>
+  `;
+
+  const searchInput = $("#reportSearch");
+  const unitFilter = $("#reportUnitFilter");
+  const statusFilter = $("#reportStatusFilter");
+  const tableContainer = $("#reportTableContainer");
+  const detailContainer = $("#reportDetailContainer");
+
+  let reports = [];
+  let activePhotoUrls = [];
+
+  function cleanupPhotoUrls() {
+    activePhotoUrls.forEach(url => URL.revokeObjectURL(url));
+    activePhotoUrls = [];
+  }
+
+  function renderRows() {
+    const keyword = searchInput.value.trim().toLowerCase();
+    const unit = unitFilter.value;
+    const status = statusFilter.value;
+
+    const filtered = reports.filter(report => {
+      const matchesKeyword =
+        !keyword ||
+        String(report.nomor || "").toLowerCase().includes(keyword) ||
+        String(report.namaPelapor || "").toLowerCase().includes(keyword);
+
+      const matchesUnit = !unit || report.unit === unit;
+      const matchesStatus = !status || report.status === status;
+
+      return matchesKeyword && matchesUnit && matchesStatus;
+    });
+
+    $("#reportResultCount").textContent =
+      `${filtered.length} laporan`;
+
+    tableContainer.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nomor laporan</th>
+              <th>Tanggal kejadian</th>
+              <th>Jenis</th>
+              <th>Unit</th>
+              <th>Pelapor</th>
+              <th>Bukti</th>
+              <th>Status</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${filtered.map(report => `
+              <tr>
+                <td>
+                  <b>${escapeHtml(report.nomor || "-")}</b>
+                </td>
+
+                <td>${dateLabel(report.tanggalKejadian)}</td>
+
+                <td>${escapeHtml(report.jenis || "-")}</td>
+
+                <td>${escapeHtml(report.unit || "-")}</td>
+
+                <td>${escapeHtml(report.namaPelapor || "-")}</td>
+
+                <td>
+                  ${Number(report.evidenceCount) > 0
+                    ? `<span class="status">${Number(report.evidenceCount)} foto</span>`
+                    : `<span class="muted">Tidak ada</span>`
+                  }
+                </td>
+
+                <td>
+                  <span class="status">
+                    ${escapeHtml(report.status || "Baru")}
+                  </span>
+                </td>
+
+                <td>
+                  <button
+                    class="text-btn"
+                    data-report-detail="${escapeHtml(report.reportId)}"
+                  >
+                    Detail
+                  </button>
+                </td>
+              </tr>
+            `).join("") || `
+              <tr>
+                <td colspan="8" class="empty">
+                  Tidak ada laporan yang sesuai dengan filter.
+                </td>
+              </tr>
+            `}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    tableContainer.querySelectorAll("[data-report-detail]").forEach(button => {
+      button.addEventListener("click", () => {
+        openReportDetail(button.dataset.reportDetail);
+      });
+    });
+  }
+
+  async function loadReports() {
+    tableContainer.innerHTML = `
+      <div class="empty">Mengambil data laporan dari server...</div>
+    `;
+
+    detailContainer.innerHTML = "";
+    cleanupPhotoUrls();
+
+    try {
+      const result = await reportApi("/reports?pageSize=50");
+
+      reports = Array.isArray(result.reports)
+        ? result.reports
+        : [];
+
+      $("#reportTotal").textContent = reports.length;
+
+      $("#reportNew").textContent = reports.filter(
+        report => report.status === "Baru"
+      ).length;
+
+      $("#reportConverted").textContent = reports.filter(
+        report => report.status === "Dikonversi"
+      ).length;
+
+      renderRows();
+
+      if (result.nextPageToken) {
+        tableContainer.insertAdjacentHTML(
+          "beforeend",
+          `<p class="tiny muted">
+            Masih terdapat laporan sebelumnya. Tampilan saat ini
+            menunjukkan 50 laporan terbaru.
+          </p>`
+        );
+      }
+
+    } catch (error) {
+      console.error("Daftar laporan:", error);
+
+      tableContainer.innerHTML = `
+        <div class="notice warning">
+          <b>Daftar laporan tidak dapat dimuat.</b>
+          <p>${escapeHtml(error.message)}</p>
+          <button class="btn subtle" id="retryReports">
+            Coba lagi
+          </button>
+        </div>
+      `;
+
+      $("#retryReports").onclick = loadReports;
+    }
+  }
+
+  async function openReportDetail(reportId) {
+    detailContainer.innerHTML = `
+      <section class="panel">
+        <p class="muted">Memuat detail laporan...</p>
+      </section>
+    `;
+
+    cleanupPhotoUrls();
+
+    try {
+      const result = await reportApi(
+        `/report?reportId=${encodeURIComponent(reportId)}`
+      );
+
+      const report = result.report;
+
+      if (!report) {
+        throw new Error("Data laporan tidak ditemukan.");
+      }
+
+      const canConvert =
+        CASE_CONVERT_ROLES.includes(profile.role) &&
+        report.status === "Baru";
+
+      const photos = Array.isArray(report.evidence)
+        ? report.evidence
+        : [];
+
+      detailContainer.innerHTML = `
+        <section class="panel report-detail-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">DETAIL LAPORAN</p>
+              <h2>${escapeHtml(report.nomor || "-")}</h2>
+            </div>
+
+            <button class="btn subtle" id="closeReportDetail">
+              Tutup
+            </button>
+          </div>
+
+          <dl class="detail-list">
+            <dt>Jenis laporan</dt>
+            <dd>${escapeHtml(report.jenis || "-")}</dd>
+
+            <dt>Unit/lokasi</dt>
+            <dd>${escapeHtml(report.unit || "-")}</dd>
+
+            <dt>Tanggal kejadian</dt>
+            <dd>${dateLabel(report.tanggalKejadian)}</dd>
+
+            <dt>Nama pelapor</dt>
+            <dd>${escapeHtml(report.namaPelapor || "-")}</dd>
+
+            <dt>Kontak pelapor</dt>
+            <dd>${escapeHtml(report.kontakPelapor || "-")}</dd>
+
+            <dt>Status</dt>
+            <dd>${escapeHtml(report.status || "-")}</dd>
+
+            <dt>Tanggal laporan</dt>
+            <dd>${dateLabel(report.createdAt)}</dd>
+
+            <dt>Uraian kejadian</dt>
+            <dd class="report-description">
+              ${escapeHtml(report.uraian || "-")}
+            </dd>
+          </dl>
+
+          <div class="report-evidence-section">
+            <h3>Bukti foto (${photos.length})</h3>
+            <div id="reportPhotoGallery" class="evidence-preview">
+              ${photos.length
+                ? `<p class="muted">Mengambil foto bukti secara aman...</p>`
+                : `<p class="muted">Tidak ada foto bukti.</p>`
+              }
+            </div>
+          </div>
+
+          ${report.caseId ? `
+            <p class="notice">
+              Laporan ini sudah dikonversi menjadi kasus.
+              ID kasus: ${escapeHtml(report.caseId)}
+            </p>
+          ` : ""}
+
+          ${canConvert ? `
+            <div class="report-action-area">
+              <button class="btn primary" id="convertReportButton">
+                Konversi menjadi kasus
+              </button>
+              <p class="tiny muted">
+                Konversi akan membuat nomor kasus baru dan mencatat
+                tindakan pada audit log.
+              </p>
+            </div>
+          ` : ""}
+        </section>
+      `;
+
+      $("#closeReportDetail").onclick = () => {
+        cleanupPhotoUrls();
+        detailContainer.innerHTML = "";
+      };
+
+      if (photos.length) {
+        const gallery = $("#reportPhotoGallery");
+
+        gallery.innerHTML = "";
+
+        for (const photo of photos) {
+          const card = document.createElement("div");
+          card.className = "evidence-preview-item";
+          card.innerHTML = `
+            <div class="evidence-photo-loading">Memuat foto...</div>
+            <small>${escapeHtml(formatBytes(photo.size || 0))}</small>
+          `;
+          gallery.appendChild(card);
+
+          try {
+            const blob = await reportApi(
+              `/evidence?reportId=${encodeURIComponent(reportId)}&evidenceId=${encodeURIComponent(photo.id)}`
+            );
+
+            const objectUrl = URL.createObjectURL(blob);
+            activePhotoUrls.push(objectUrl);
+
+            const img = document.createElement("img");
+            img.src = objectUrl;
+            img.alt = "Bukti foto laporan";
+            img.loading = "lazy";
+
+            const loading = card.querySelector(".evidence-photo-loading");
+            loading.replaceWith(img);
+
+          } catch (photoError) {
+            const loading = card.querySelector(".evidence-photo-loading");
+
+            if (loading) {
+              loading.textContent = "Foto tidak dapat dibuka.";
+            }
+
+            console.warn("Bukti foto:", photoError);
+          }
+        }
+      }
+
+      const convertButton = $("#convertReportButton");
+
+      if (convertButton) {
+        convertButton.onclick = async () => {
+          const confirmed = window.confirm(
+            `Konversi ${report.nomor} menjadi kasus? Tindakan ini akan membuat nomor kasus baru.`
+          );
+
+          if (!confirmed) return;
+
+          convertButton.disabled = true;
+          convertButton.textContent = "Memproses konversi...";
+
+          try {
+            const conversion = await reportApi("/convert-report", {
+              method: "POST",
+              body: JSON.stringify({ reportId })
+            });
+
+            toast(
+              `Laporan berhasil dikonversi menjadi ${conversion.nomor}.`,
+              "success"
+            );
+
+            cleanupPhotoUrls();
+            detailContainer.innerHTML = "";
+
+            await loadReports();
+
+          } catch (error) {
+            convertButton.disabled = false;
+            convertButton.textContent = "Konversi menjadi kasus";
+
+            toast(error.message, "error");
+          }
+        };
+      }
+
+    } catch (error) {
+      console.error("Detail laporan:", error);
+
+      detailContainer.innerHTML = `
+        <div class="notice warning">
+          <b>Detail laporan gagal dibuka.</b>
+          <p>${escapeHtml(error.message)}</p>
+        </div>
+      `;
+    }
+  }
+
+  searchInput.addEventListener("input", renderRows);
+  unitFilter.addEventListener("change", renderRows);
+  statusFilter.addEventListener("change", renderRows);
+
+  $("#refreshReports").onclick = loadReports;
+
+  loadReports();
 }
 
 // =====================================================
