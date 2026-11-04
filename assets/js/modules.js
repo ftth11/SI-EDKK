@@ -1,4 +1,3 @@
-
 import { auth, db } from "./firebase.js";
 import {
   collection,
@@ -7,7 +6,8 @@ import {
   orderBy,
   limit,
   doc,
-  getDoc
+  getDoc,
+  where
 } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 
 import { $, escapeHtml, dateLabel, toast } from "./ui.js";
@@ -1346,12 +1346,31 @@ async function caseList(host, database = false) {
   });
 }
 
+
 async function showCase(id) {
   const s = await getDoc(doc(db, "cases", id));
 
-  if (!s.exists()) return;
+  if (!s.exists()) {
+    toast("Data kasus tidak ditemukan.", "error");
+    return;
+  }
 
   const d = s.data();
+
+  const committeeRoles = [
+    "Admin",
+    "Ketua Komite",
+    "Sekretaris",
+    "Anggota Komite"
+  ];
+
+  const profile = window.currentProfile || {};
+  const canViewReport = committeeRoles.includes(profile.role);
+
+  let reportId = d.reportId || "";
+  let report = null;
+  let evidence = Array.isArray(d.evidence) ? d.evidence : [];
+  let photoUrls = [];
 
   const html = `
     <div class="modal-backdrop" id="caseModal">
@@ -1374,26 +1393,194 @@ async function showCase(id) {
           <dt>Status</dt>
           <dd>${escapeHtml(d.status || "-")}</dd>
 
+          <dt>Nomor laporan asal</dt>
+          <dd id="caseReportNumber">
+            ${escapeHtml(d.nomorLaporan || "-")}
+          </dd>
+
+          <dt>Nama pelapor</dt>
+          <dd id="caseReporter">
+            ${canViewReport
+              ? escapeHtml(d.namaPelapor || "-")
+              : "Informasi terbatas"}
+          </dd>
+
+          ${canViewReport ? `
+            <dt>Kontak pelapor</dt>
+            <dd id="caseReporterContact">
+              ${escapeHtml(d.kontakPelapor || "-")}
+            </dd>
+          ` : ""}
+
           <dt>Uraian</dt>
-          <dd>${escapeHtml(d.uraian || "-")}</dd>
+          <dd class="report-description">
+            ${escapeHtml(d.uraian || "-")}
+          </dd>
         </dl>
+
+        <section class="report-evidence-section">
+          <h3>Bukti foto</h3>
+          <div id="caseEvidenceGallery" class="evidence-preview">
+            <p class="muted">Memeriksa bukti foto...</p>
+          </div>
+        </section>
 
         <p class="tiny muted">
           Perubahan status, penugasan, dan catatan pemeriksaan dilakukan
           melalui fungsi backend yang memiliki audit trail.
         </p>
       </section>
-    </div>`;
+    </div>
+  `;
 
   document.body.insertAdjacentHTML("beforeend", html);
 
-  $("#closeModal").onclick = () => $("#caseModal").remove();
+  const modal = $("#caseModal");
 
-  $("#caseModal").onclick = event => {
-    if (event.target.id === "caseModal") {
-      event.currentTarget.remove();
+  function closeCaseModal() {
+    photoUrls.forEach(url => URL.revokeObjectURL(url));
+    photoUrls = [];
+    modal?.remove();
+  }
+
+  $("#closeModal").onclick = closeCaseModal;
+
+  modal.onclick = event => {
+    if (event.target === modal) {
+      closeCaseModal();
     }
   };
+
+  const gallery = $("#caseEvidenceGallery");
+
+  try {
+    // Untuk kasus lama, cari laporan asal berdasarkan caseId.
+    if (!reportId && canViewReport) {
+      const reportSnap = await getDocs(
+        query(
+          collection(db, "reports"),
+          where("caseId", "==", id),
+          limit(1)
+        )
+      );
+
+      if (!reportSnap.empty) {
+        reportId = reportSnap.docs[0].id;
+      }
+    }
+
+    // Ambil data lengkap laporan asal melalui backend.
+    if (reportId && canViewReport) {
+      const result = await reportApi(
+        `/report?reportId=${encodeURIComponent(reportId)}`
+      );
+
+      report = result.report || null;
+
+      if (report) {
+        evidence = Array.isArray(report.evidence)
+          ? report.evidence
+          : evidence;
+
+        $("#caseReportNumber").textContent =
+          report.nomor || d.nomorLaporan || "-";
+
+        $("#caseReporter").textContent =
+          report.namaPelapor || d.namaPelapor || "-";
+
+        $("#caseReporterContact").textContent =
+          report.kontakPelapor || d.kontakPelapor || "-";
+      }
+    }
+
+    if (!canViewReport) {
+      gallery.innerHTML = `
+        <p class="muted">
+          Bukti foto dan informasi pelapor hanya dapat diakses
+          oleh petugas komite yang berwenang.
+        </p>
+      `;
+      return;
+    }
+
+    if (!evidence.length) {
+      gallery.innerHTML = `
+        <p class="muted">Tidak ada foto bukti pada laporan ini.</p>
+      `;
+      return;
+    }
+
+    if (!reportId) {
+      gallery.innerHTML = `
+        <p class="muted">
+          Referensi laporan asal belum ditemukan.
+          Foto bukti belum dapat ditampilkan.
+        </p>
+      `;
+      return;
+    }
+
+    gallery.innerHTML = "";
+
+    for (const photo of evidence) {
+      const card = document.createElement("div");
+      card.className = "evidence-preview-item";
+
+      card.innerHTML = `
+        <div class="evidence-photo-loading">
+          Memuat foto...
+        </div>
+        <small>${escapeHtml(formatBytes(photo.size || 0))}</small>
+      `;
+
+      gallery.appendChild(card);
+
+      try {
+        const blob = await reportApi(
+          `/evidence?reportId=${encodeURIComponent(reportId)}&evidenceId=${encodeURIComponent(photo.id)}`
+        );
+
+        if (!modal.isConnected) {
+          return;
+        }
+
+        const objectUrl = URL.createObjectURL(blob);
+        photoUrls.push(objectUrl);
+
+        const img = document.createElement("img");
+        img.src = objectUrl;
+        img.alt = "Bukti foto kasus";
+        img.loading = "lazy";
+
+        const loading = card.querySelector(".evidence-photo-loading");
+
+        if (loading) {
+          loading.replaceWith(img);
+        }
+
+      } catch (photoError) {
+        const loading = card.querySelector(".evidence-photo-loading");
+
+        if (loading) {
+          loading.textContent = "Foto tidak dapat dibuka.";
+        }
+
+        console.warn("Bukti foto kasus:", photoError);
+      }
+    }
+
+  } catch (error) {
+    console.error("Detail kasus:", error);
+
+    if (modal.isConnected) {
+      gallery.innerHTML = `
+        <p class="muted">
+          Informasi laporan atau bukti foto belum dapat dimuat.
+          ${escapeHtml(error.message)}
+        </p>
+      `;
+    }
+  }
 }
 
 // =====================================================
