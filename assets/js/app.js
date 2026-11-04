@@ -17,7 +17,20 @@ observeAuth(async (user,profile)=>{
   window.currentProfile=profile;
   loginView.classList.add("hidden");appView.classList.remove("hidden");
   $("#userName").textContent=profile.nama||user.email; $("#userRole").textContent=profile.role||"User";
-  $$(".admin-only").forEach(el=>el.classList.toggle("hidden",profile.role!=="Admin"));
+  const committeeRoles = [
+  "Admin",
+  "Ketua Komite",
+  "Sekretaris",
+  "Anggota Komite"
+];
+
+$$(".admin-only").forEach(el => {
+  el.classList.toggle("hidden", profile.role !== "Admin");
+});
+
+$$(".committee-only").forEach(el => {
+  el.classList.toggle("hidden", !committeeRoles.includes(profile.role));
+});
   await navigate("dashboard");
 });
 async function navigate(page){
