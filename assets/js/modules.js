@@ -1547,41 +1547,68 @@ async function showCase(id) {
         const objectUrl = URL.createObjectURL(blob);
         photoUrls.push(objectUrl);
 
+                
         const img = document.createElement("img");
         img.src = objectUrl;
         img.alt = "Bukti foto kasus";
         img.loading = "lazy";
-
+        img.style.cursor = "zoom-in";
+        img.title = "Klik untuk memperbesar foto";
+        
+        // Klik foto untuk membuka tampilan ukuran penuh
+        img.addEventListener("click", () => {
+          const preview = document.createElement("div");
+        
+          preview.style.cssText = `
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            background: rgba(0,0,0,0.92);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            cursor: zoom-out;
+          `;
+        
+          const fullImage = document.createElement("img");
+          fullImage.src = objectUrl;
+          fullImage.alt = "Bukti foto kasus ukuran penuh";
+        
+          fullImage.style.cssText = `
+            max-width: 100%;
+            max-height: 95vh;
+            object-fit: contain;
+            border-radius: 8px;
+          `;
+        
+          preview.appendChild(fullImage);
+          document.body.appendChild(preview);
+        
+          preview.addEventListener("click", () => {
+            preview.remove();
+          });
+        });
+        
         const loading = card.querySelector(".evidence-photo-loading");
-
+        
         if (loading) {
           loading.replaceWith(img);
         }
-
-      } catch (photoError) {
-        const loading = card.querySelector(".evidence-photo-loading");
-
-        if (loading) {
-          loading.textContent = "Foto tidak dapat dibuka.";
+        
+        } catch (photoError) {
+          const loading = card.querySelector(".evidence-photo-loading");
+        
+          if (loading) {
+            loading.textContent = "Foto tidak dapat dibuka.";
+          }
+        
+          console.warn("Bukti foto kasus:", photoError);
         }
-
-        console.warn("Bukti foto kasus:", photoError);
       }
-    }
-
-  } catch (error) {
-    console.error("Detail kasus:", error);
-
-    if (modal.isConnected) {
-      gallery.innerHTML = `
-        <p class="muted">
-          Informasi laporan atau bukti foto belum dapat dimuat.
-          ${escapeHtml(error.message)}
-        </p>
-      `;
-    }
   }
 }
+
 
 // =====================================================
 // DOKUMEN
