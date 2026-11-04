@@ -14,6 +14,9 @@ import { $, escapeHtml, dateLabel, toast } from "./ui.js";
 
 const API_URL = "https://si-etik-api.baits-ap97.workers.dev";
 
+const MAX_PHOTOS = 3;
+const MAX_PHOTO_BYTES = 1500000;
+
 const pageTitles = {
   dashboard: "Dashboard",
   pelaporan: "Pelaporan Kasus",
@@ -85,9 +88,11 @@ export async function renderPage(page, profile) {
   try {
     if (page === "dashboard") return await dashboard(host, profile);
     if (page === "pelaporan") return reportPage(host, profile);
+
     if (page === "kasus" || page === "database") {
       return caseList(host, page === "database");
     }
+
     if (page === "dokumen") return documents(host);
     if (page === "monitoring") return monitoring(host);
     if (page === "program") return programs(host);
@@ -95,6 +100,7 @@ export async function renderPage(page, profile) {
 
   } catch (e) {
     console.error(e);
+
     host.innerHTML = `
       <div class="notice warning">
         Tidak dapat memuat data. ${escapeHtml(e.message)}
@@ -106,13 +112,37 @@ async function count(col) {
   const s = await getDocs(
     query(collection(db, col), limit(500))
   );
+
   return s.size;
 }
 
+// =====================================================
+// DASHBOARD
+// =====================================================
+
 async function dashboard(host, profile) {
-  const [cases, reports, docs, programs] = await Promise.all(
-    ["cases", "reports", "documents", "programs"].map(count)
-  );
+  const [cases, docs, programs] = await Promise.all([
+    count("cases"),
+    count("documents"),
+    count("programs")
+  ]);
+
+  let reports = "-";
+
+  const committeeRoles = [
+    "Admin",
+    "Ketua Komite",
+    "Sekretaris",
+    "Anggota Komite"
+  ];
+
+  if (committeeRoles.includes(profile?.role)) {
+    try {
+      reports = await count("reports");
+    } catch (error) {
+      console.warn("Jumlah laporan tidak dapat dibaca:", error);
+    }
+  }
 
   host.innerHTML = `
     <div class="welcome">
@@ -130,19 +160,26 @@ async function dashboard(host, profile) {
 
     <div class="stats-grid">
       <article class="stat-card">
-        <span>Total kasus</span><b>${cases}</b>
+        <span>Total kasus</span>
+        <b>${cases}</b>
         <small>Data yang dapat diakses</small>
       </article>
+
       <article class="stat-card">
-        <span>Laporan masuk</span><b>${reports}</b>
-        <small>Termasuk laporan baru</small>
+        <span>Laporan masuk</span>
+        <b>${reports}</b>
+        <small>Data sesuai hak akses</small>
       </article>
+
       <article class="stat-card">
-        <span>Dokumen</span><b>${docs}</b>
+        <span>Dokumen</span>
+        <b>${docs}</b>
         <small>Dokumen komite</small>
       </article>
+
       <article class="stat-card">
-        <span>Program kerja</span><b>${programs}</b>
+        <span>Program kerja</span>
+        <b>${programs}</b>
         <small>Program terdaftar</small>
       </article>
     </div>
@@ -153,9 +190,11 @@ async function dashboard(host, profile) {
           <h3>Aktivitas terbaru</h3>
           <span class="pill">Terbatas</span>
         </div>
+
         <p class="muted">
           Buka Manajemen Kasus untuk meninjau kasus yang menjadi kewenangan Anda.
         </p>
+
         <button class="btn primary" data-goto="kasus">
           Lihat manajemen kasus
         </button>
@@ -173,7 +212,120 @@ async function dashboard(host, profile) {
 }
 
 // =====================================================
-// PELAPORAN INTERNAL - CLOUDFLARE WORKER
+// KOMPRESI FOTO
+// =====================================================
+
+async function compressPhoto(file) {
+  const allowedTypes = [
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ];
+
+  if (!allowedTypes.includes(file.type)) {
+    throw new Error(
+      `Format ${file.name} tidak didukung. Gunakan JPG, PNG, atau WebP.`
+    );
+  }
+
+  if (!file.size) {
+    throw new Error(`File ${file.name} kosong.`);
+  }
+
+  let bitmap;
+
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    throw new Error(
+      `Foto ${file.name} tidak dapat dibaca. Silakan pilih foto JPG, PNG, atau WebP.`
+    );
+  }
+
+  try {
+    let width = bitmap.width;
+    let height = bitmap.height;
+
+    const maxDimension = 1600;
+
+    if (width > maxDimension || height > maxDimension) {
+      const ratio = Math.min(
+        maxDimension / width,
+        maxDimension / height
+      );
+
+      width = Math.round(width * ratio);
+      height = Math.round(height * ratio);
+    }
+
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("Browser tidak mendukung pemrosesan foto.");
+    }
+
+    let resultBlob = null;
+
+    for (let attempt = 0; attempt < 12; attempt++) {
+      canvas.width = width;
+      canvas.height = height;
+
+      context.clearRect(0, 0, width, height);
+
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, width, height);
+
+      context.drawImage(bitmap, 0, 0, width, height);
+
+      const quality = Math.max(
+        0.42,
+        0.82 - (attempt % 5) * 0.09
+      );
+
+      resultBlob = await new Promise(resolve => {
+        canvas.toBlob(resolve, "image/jpeg", quality);
+      });
+
+      if (
+        resultBlob &&
+        resultBlob.size <= MAX_PHOTO_BYTES
+      ) {
+        break;
+      }
+
+      if (attempt % 5 === 4) {
+        width = Math.round(width * 0.8);
+        height = Math.round(height * 0.8);
+      }
+    }
+
+    if (!resultBlob || resultBlob.size > MAX_PHOTO_BYTES) {
+      throw new Error(
+        `Foto ${file.name} masih terlalu besar setelah dikompres.`
+      );
+    }
+
+    const safeName = file.name
+      .replace(/\.[^.]+$/, "")
+      .replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    return new File(
+      [resultBlob],
+      `${safeName || "bukti"}.jpg`,
+      {
+        type: "image/jpeg",
+        lastModified: Date.now()
+      }
+    );
+
+  } finally {
+    bitmap.close();
+  }
+}
+
+// =====================================================
+// PELAPORAN INTERNAL + FOTO BUKTI
 // =====================================================
 
 function reportPage(host, profile) {
@@ -201,7 +353,9 @@ function reportPage(host, profile) {
           <select name="jenis" required>
             <option value="Etik">Etik</option>
             <option value="Disiplin">Disiplin</option>
-            <option value="Etik dan Disiplin">Etik dan Disiplin</option>
+            <option value="Etik dan Disiplin">
+              Etik dan Disiplin
+            </option>
           </select>
         </label>
 
@@ -253,6 +407,33 @@ function reportPage(host, profile) {
           ></textarea>
         </label>
 
+        <div class="full evidence-input-area">
+          <label for="evidenceFiles">
+            Foto bukti kejadian
+          </label>
+
+          <p class="muted tiny">
+            Pilih maksimal 3 foto. Foto akan dikompres otomatis
+            sebelum dikirim. Format JPG, PNG, atau WebP.
+          </p>
+
+          <input
+            id="evidenceFiles"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+          >
+
+          <div
+            id="evidencePreview"
+            class="evidence-preview"
+          ></div>
+
+          <p class="tiny muted" id="evidenceInfo">
+            Belum ada foto dipilih.
+          </p>
+        </div>
+
         <button
           class="btn primary"
           id="submitInternalReport"
@@ -263,7 +444,7 @@ function reportPage(host, profile) {
 
         <p
           id="formMessage"
-          class="muted"
+          class="muted full"
           role="status"
           aria-live="polite"
         ></p>
@@ -274,67 +455,282 @@ function reportPage(host, profile) {
   const form = $("#internalReport");
   const button = $("#submitInternalReport");
   const message = $("#formMessage");
+  const fileInput = $("#evidenceFiles");
+  const preview = $("#evidencePreview");
+  const evidenceInfo = $("#evidenceInfo");
+
+  let selectedPhotos = [];
+
+  // Jika laporan sudah tersimpan tetapi unggah foto gagal,
+  // proses berikutnya melanjutkan unggah tanpa membuat laporan baru.
+  let pendingReportId = null;
+  let pendingReportNumber = null;
+
+  function revokePhotoUrls() {
+    selectedPhotos.forEach(photo => {
+      URL.revokeObjectURL(photo.previewUrl);
+    });
+  }
+
+  function renderPhotoPreview() {
+    preview.innerHTML = selectedPhotos.map((photo, index) => `
+      <div class="evidence-preview-item">
+        <img
+          src="${photo.previewUrl}"
+          alt="Pratinjau foto bukti ${index + 1}"
+          loading="lazy"
+        >
+
+        <button
+          type="button"
+          class="evidence-remove"
+          data-remove-photo="${index}"
+          aria-label="Hapus foto ${index + 1}"
+          ${pendingReportId ? "disabled" : ""}
+        >
+          ×
+        </button>
+
+        <small>
+          Foto ${index + 1}
+        </small>
+      </div>
+    `).join("");
+
+    const totalSize = selectedPhotos.reduce(
+      (sum, photo) => sum + photo.file.size,
+      0
+    );
+
+    evidenceInfo.textContent = selectedPhotos.length
+      ? `${selectedPhotos.length} foto dipilih • ${formatBytes(totalSize)}`
+      : "Belum ada foto dipilih.";
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(0)} KB`;
+    }
+
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  fileInput.addEventListener("change", async () => {
+    if (pendingReportId) {
+      toast(
+        "Selesaikan unggah bukti laporan sebelumnya terlebih dahulu.",
+        "warning"
+      );
+
+      fileInput.value = "";
+      return;
+    }
+
+    const files = Array.from(fileInput.files || []);
+
+    if (!files.length) return;
+
+    if (selectedPhotos.length + files.length > MAX_PHOTOS) {
+      toast("Maksimal 3 foto untuk satu laporan.", "error");
+      fileInput.value = "";
+      return;
+    }
+
+    fileInput.disabled = true;
+    evidenceInfo.textContent = "Sedang memproses dan mengompres foto...";
+
+    try {
+      for (const file of files) {
+        const compressed = await compressPhoto(file);
+
+        const previewUrl = URL.createObjectURL(compressed);
+
+        selectedPhotos.push({
+          file: compressed,
+          previewUrl
+        });
+      }
+
+      renderPhotoPreview();
+
+    } catch (error) {
+      toast(error.message, "error");
+
+    } finally {
+      fileInput.disabled = false;
+      fileInput.value = "";
+    }
+  });
+
+  preview.addEventListener("click", event => {
+    const button = event.target.closest("[data-remove-photo]");
+
+    if (!button || pendingReportId) return;
+
+    const index = Number(button.dataset.removePhoto);
+
+    if (!Number.isInteger(index) || !selectedPhotos[index]) {
+      return;
+    }
+
+    URL.revokeObjectURL(selectedPhotos[index].previewUrl);
+    selectedPhotos.splice(index, 1);
+
+    renderPhotoPreview();
+  });
+
+  async function uploadPendingPhotos(token) {
+    if (!pendingReportId) return;
+
+    const total = selectedPhotos.length;
+
+    for (let index = 0; index < total; index++) {
+      const photo = selectedPhotos[0];
+
+      message.textContent =
+        `Mengunggah foto ${index + 1} dari ${total}...`;
+
+      const uploadForm = new FormData();
+
+      uploadForm.append("reportId", pendingReportId);
+      uploadForm.append("file", photo.file, photo.file.name);
+
+      const response = await fetch(`${API_URL}/upload-evidence`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: uploadForm
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.error ||
+          `Foto ${index + 1} gagal diunggah.`
+        );
+      }
+
+      URL.revokeObjectURL(photo.previewUrl);
+      selectedPhotos.shift();
+
+      renderPhotoPreview();
+    }
+  }
 
   form.addEventListener("submit", async event => {
     event.preventDefault();
 
     if (!auth?.currentUser) {
-      message.textContent = "Sesi login berakhir. Silakan login kembali.";
+      message.textContent =
+        "Sesi login berakhir. Silakan login kembali.";
+
       toast("Silakan login kembali.", "error");
       return;
     }
 
-    if (!form.reportValidity()) return;
-
-    const data = Object.fromEntries(new FormData(form));
+    if (!pendingReportId && !form.reportValidity()) {
+      return;
+    }
 
     button.disabled = true;
-    button.textContent = "Mengirim laporan...";
-    message.textContent = "Sedang menyimpan laporan. Mohon tunggu.";
+    fileInput.disabled = true;
 
     try {
       const token = await auth.currentUser.getIdToken(true);
 
-      const response = await fetch(`${API_URL}/internal-report`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(data)
-      });
+      // Buat laporan hanya jika belum pernah berhasil dibuat.
+      if (!pendingReportId) {
+        const data = Object.fromEntries(new FormData(form));
 
-      const result = await response.json();
+        button.textContent = "Menyimpan laporan...";
+        message.textContent =
+          "Sedang menyimpan laporan. Mohon tunggu.";
 
-      if (!response.ok || !result.success) {
-        throw new Error(
-          result.error || "Laporan gagal dikirim."
-        );
+        const response = await fetch(`${API_URL}/internal-report`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.json().catch(() => ({}));
+
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.error || "Laporan gagal dikirim."
+          );
+        }
+
+        pendingReportId = result.reportId;
+        pendingReportNumber = result.nomor;
       }
 
-      message.textContent =
-        `Laporan berhasil dikirim. Nomor laporan: ${result.nomor}`;
+      // Lanjutkan unggah foto jika ada.
+      if (selectedPhotos.length > 0) {
+        button.textContent = "Mengunggah foto...";
+        await uploadPendingPhotos(token);
+      }
 
-      toast("Laporan berhasil disimpan.", "success");
+      const nomor = pendingReportNumber;
+
+      message.textContent =
+        `Laporan ${nomor} berhasil dikirim` +
+        (selectedPhotos.length ? "." : " beserta bukti foto.");
+
+      toast("Laporan dan bukti berhasil disimpan.", "success");
+
+      revokePhotoUrls();
+      selectedPhotos = [];
+
+      pendingReportId = null;
+      pendingReportNumber = null;
 
       form.reset();
 
       form.querySelector('[name="namaPelapor"]').value =
         profile?.nama || "";
 
+      renderPhotoPreview();
+
+      button.textContent = "Kirim laporan";
+
     } catch (error) {
       console.error("Internal report:", error);
 
-      message.textContent =
-        error.message || "Terjadi kesalahan saat mengirim laporan.";
+      if (pendingReportId) {
+        message.textContent =
+          `Laporan ${pendingReportNumber} sudah tersimpan, ` +
+          `tetapi unggah foto belum selesai. ` +
+          `Tekan tombol di bawah untuk melanjutkan unggah foto.`;
 
-      toast(message.textContent, "error");
+        button.textContent = "Lanjutkan unggah bukti";
+
+        toast(
+          error.message || "Unggah foto belum selesai.",
+          "warning"
+        );
+
+      } else {
+        message.textContent =
+          error.message || "Terjadi kesalahan saat mengirim laporan.";
+
+        button.textContent = "Kirim laporan";
+
+        toast(message.textContent, "error");
+      }
 
     } finally {
       button.disabled = false;
-      button.textContent = "Kirim laporan";
+      fileInput.disabled = false;
     }
   });
+
+  renderPhotoPreview();
 }
 
 // =====================================================
@@ -363,7 +759,10 @@ async function caseList(host, database = false) {
           Daftar kasus sesuai hak akses akun Anda. Maksimal 100 data terbaru.
         </p>
       </div>
-      <button class="btn subtle" id="refreshBtn">Muat ulang</button>
+
+      <button class="btn subtle" id="refreshBtn">
+        Muat ulang
+      </button>
     </div>
 
     <section class="panel">
@@ -379,6 +778,7 @@ async function caseList(host, database = false) {
               <th></th>
             </tr>
           </thead>
+
           <tbody>
             ${rows.map(r => `
               <tr>
@@ -387,10 +787,15 @@ async function caseList(host, database = false) {
                 <td>${escapeHtml(r.unit || "-")}</td>
                 <td>${dateLabel(r.tanggalKejadian)}</td>
                 <td>
-                  <span class="status">${escapeHtml(r.status || "Baru")}</span>
+                  <span class="status">
+                    ${escapeHtml(r.status || "Baru")}
+                  </span>
                 </td>
                 <td>
-                  <button class="text-btn" data-case="${escapeHtml(r.id)}">
+                  <button
+                    class="text-btn"
+                    data-case="${escapeHtml(r.id)}"
+                  >
                     Detail
                   </button>
                 </td>
@@ -429,15 +834,25 @@ async function showCase(id) {
     <div class="modal-backdrop" id="caseModal">
       <section class="modal">
         <button class="modal-close" id="closeModal">×</button>
+
         <p class="eyebrow">DETAIL KASUS</p>
         <h2>${escapeHtml(d.nomor || "Kasus")}</h2>
 
         <dl class="detail-list">
-          <dt>Jenis</dt><dd>${escapeHtml(d.jenis || "-")}</dd>
-          <dt>Unit</dt><dd>${escapeHtml(d.unit || "-")}</dd>
-          <dt>Tanggal kejadian</dt><dd>${dateLabel(d.tanggalKejadian)}</dd>
-          <dt>Status</dt><dd>${escapeHtml(d.status || "-")}</dd>
-          <dt>Uraian</dt><dd>${escapeHtml(d.uraian || "-")}</dd>
+          <dt>Jenis</dt>
+          <dd>${escapeHtml(d.jenis || "-")}</dd>
+
+          <dt>Unit</dt>
+          <dd>${escapeHtml(d.unit || "-")}</dd>
+
+          <dt>Tanggal kejadian</dt>
+          <dd>${dateLabel(d.tanggalKejadian)}</dd>
+
+          <dt>Status</dt>
+          <dd>${escapeHtml(d.status || "-")}</dd>
+
+          <dt>Uraian</dt>
+          <dd>${escapeHtml(d.uraian || "-")}</dd>
         </dl>
 
         <p class="tiny muted">
@@ -492,6 +907,7 @@ async function documents(host) {
               <th>Pembaruan</th>
             </tr>
           </thead>
+
           <tbody>
             ${snap.docs.map(x => {
               const d = x.data();
@@ -505,7 +921,9 @@ async function documents(host) {
                 </tr>`;
             }).join("") || `
               <tr>
-                <td colspan="4" class="empty">Belum ada dokumen.</td>
+                <td colspan="4" class="empty">
+                  Belum ada dokumen.
+                </td>
               </tr>
             `}
           </tbody>
@@ -524,9 +942,10 @@ async function documents(host) {
 // =====================================================
 
 async function monitoring(host) {
-  const [cases, reports, evals] = await Promise.all(
-    ["cases", "reports", "evaluations"].map(count)
-  );
+  const [cases, evals] = await Promise.all([
+    count("cases"),
+    count("evaluations")
+  ]);
 
   host.innerHTML = `
     <div class="page-intro">
@@ -540,13 +959,13 @@ async function monitoring(host) {
 
     <div class="stats-grid">
       <article class="stat-card">
-        <span>Kasus tercatat</span><b>${cases}</b>
+        <span>Kasus tercatat</span>
+        <b>${cases}</b>
       </article>
+
       <article class="stat-card">
-        <span>Laporan masuk</span><b>${reports}</b>
-      </article>
-      <article class="stat-card">
-        <span>Evaluasi</span><b>${evals}</b>
+        <span>Evaluasi</span>
+        <b>${evals}</b>
       </article>
     </div>
 
@@ -580,7 +999,10 @@ async function programs(host) {
           Program kerja, rapat, sosialisasi, dan kegiatan komite.
         </p>
       </div>
-      <button class="btn primary" id="addProgram">Tambah program</button>
+
+      <button class="btn primary" id="addProgram">
+        Tambah program
+      </button>
     </div>
 
     <section class="panel">
@@ -594,6 +1016,7 @@ async function programs(host) {
               <th>Status</th>
             </tr>
           </thead>
+
           <tbody>
             ${snap.docs.map(x => {
               const d = x.data();
@@ -607,7 +1030,9 @@ async function programs(host) {
                 </tr>`;
             }).join("") || `
               <tr>
-                <td colspan="4" class="empty">Belum ada program kerja.</td>
+                <td colspan="4" class="empty">
+                  Belum ada program kerja.
+                </td>
               </tr>
             `}
           </tbody>
@@ -631,17 +1056,27 @@ async function settings(host, profile) {
     <div class="page-intro">
       <div>
         <h1>Pengaturan</h1>
-        <p class="muted">Informasi akun dan tata kelola sistem.</p>
+        <p class="muted">
+          Informasi akun dan tata kelola sistem.
+        </p>
       </div>
     </div>
 
     <section class="panel">
       <h3>Profil akun</h3>
+
       <dl class="detail-list">
-        <dt>Nama</dt><dd>${escapeHtml(profile.nama || "-")}</dd>
-        <dt>Email</dt><dd>${escapeHtml(profile.email || "-")}</dd>
-        <dt>Role</dt><dd>${escapeHtml(profile.role || "-")}</dd>
-        <dt>Status</dt><dd>${profile.aktif === true ? "Aktif" : "Nonaktif"}</dd>
+        <dt>Nama</dt>
+        <dd>${escapeHtml(profile.nama || "-")}</dd>
+
+        <dt>Email</dt>
+        <dd>${escapeHtml(profile.email || "-")}</dd>
+
+        <dt>Role</dt>
+        <dd>${escapeHtml(profile.role || "-")}</dd>
+
+        <dt>Status</dt>
+        <dd>${profile.aktif === true ? "Aktif" : "Nonaktif"}</dd>
       </dl>
     </section>
 
