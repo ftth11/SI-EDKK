@@ -1,14 +1,230 @@
+
 <!doctype html>
-<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0d6575"><title>Pelaporan Kasus | SI-EDKK</title><link rel="stylesheet" href="./assets/css/main.css"><link rel="manifest" href="./manifest.json"></head>
-<body class="public-page"><main class="public-wrap"><a href="./index.html" class="back-link">← Kembali ke SI-EDKK</a><section class="panel public-card"><div class="brand-mark">✚</div><p class="eyebrow">UPTD RSUD KELAS D PONDOKGEDE</p><h1>Formulir Pelaporan</h1><p class="muted">Gunakan formulir ini untuk menyampaikan dugaan permasalahan etik atau disiplin keperawatan. Informasi ditangani secara terbatas oleh pihak berwenang.</p>
-<form id="publicReportForm" class="form-grid">
-<label>Jenis laporan<select name="jenis" required><option value="">Pilih jenis</option><option>Etik</option><option>Disiplin</option><option>Etik dan Disiplin</option></select></label>
-<label>Identitas pelapor<select name="modePelapor" id="modePelapor"><option value="anonim">Anonim</option><option value="teridentifikasi">Teridentifikasi</option></select></label>
-<div id="identityFields" class="full hidden"><label>Nama pelapor</label><input name="namaPelapor"><label>Email/nomor kontak (opsional)</label><input name="kontakPelapor"></div>
-<label>Unit/lokasi kejadian<input name="unit" required maxlength="120"></label>
-<label>Tanggal kejadian<input name="tanggalKejadian" type="date" required></label>
-<label class="full">Uraian kejadian<textarea name="uraian" rows="6" required minlength="20" maxlength="6000" placeholder="Tuliskan kronologi secara faktual, jelas, dan tidak menyertakan informasi yang tidak relevan."></textarea></label>
-<label class="full">Pihak/unit terkait (hindari data pasien yang tidak diperlukan)<input name="pihakTerkait" maxlength="500"></label>
-<label class="full check"><input type="checkbox" required> Saya menyatakan laporan ini disampaikan dengan itikad baik dan informasi yang saya berikan benar menurut pengetahuan saya.</label>
-<button class="btn primary full" type="submit">Kirim laporan</button><p id="reportMessage" class="full muted" role="status"></p>
-</form><p class="tiny muted">Jangan masukkan diagnosis, nomor rekam medis, foto pasien, atau data pribadi pasien kecuali benar-benar diperlukan dan telah disetujui sesuai kebijakan rumah sakit.</p></section></main><script type="module" src="./assets/js/public-report.js"></script></body></html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0d6575">
+  <meta name="description" content="Formulir Pelaporan SI-ETIK UPTD RSUD Kelas D Pondokgede">
+  <title>Pelaporan Kasus | SI-ETIK</title>
+  <link rel="stylesheet" href="./assets/css/main.css">
+  <link rel="manifest" href="./manifest.json">
+</head>
+
+<body class="public-page">
+<main class="public-wrap">
+
+  <a href="./index.html" class="back-link">← Kembali ke SI-ETIK</a>
+
+  <section class="panel public-card">
+    <div class="brand-mark">✚</div>
+    <p class="eyebrow">UPTD RSUD KELAS D PONDOKGEDE</p>
+    <h1>Formulir Pelaporan</h1>
+
+    <p class="muted">
+      Gunakan formulir ini untuk menyampaikan dugaan permasalahan
+      etik atau disiplin keperawatan. Informasi ditangani secara
+      terbatas oleh pihak berwenang.
+    </p>
+
+    <form id="publicReportForm" class="form-grid">
+
+      <label>
+        Jenis laporan
+        <select name="jenis" required>
+          <option value="">Pilih jenis</option>
+          <option>Etik</option>
+          <option>Disiplin</option>
+          <option>Etik dan Disiplin</option>
+        </select>
+      </label>
+
+      <label>
+        Identitas pelapor
+        <select name="modePelapor" id="modePelapor">
+          <option value="anonim">Anonim</option>
+          <option value="teridentifikasi">Teridentifikasi</option>
+        </select>
+      </label>
+
+      <div id="identityFields" class="full hidden">
+        <label>Nama pelapor</label>
+        <input name="namaPelapor" maxlength="120">
+
+        <label>Email/nomor kontak (opsional)</label>
+        <input name="kontakPelapor" maxlength="150">
+      </div>
+
+      <label>
+        Unit/lokasi kejadian
+        <select name="unit" required>
+          <option value="">Pilih unit/lokasi</option>
+          <option>POLI BEDAH</option>
+          <option>CSSD</option>
+          <option>POLI GIGI &amp; MULUT</option>
+          <option>IGD</option>
+          <option>POLI OBGYN</option>
+          <option>OK 1</option>
+          <option>PERINA</option>
+          <option>RANAP</option>
+          <option>RUANG PEMULIHAN</option>
+          <option>HCU</option>
+          <option>LABORATORIUM</option>
+          <option>RADIOLOGI</option>
+          <option>FARMASI</option>
+          <option>ICU</option>
+          <option>OK 2</option>
+          <option>LAB PCR</option>
+          <option>POLI TB/PARU</option>
+          <option>AMBULANCE APV</option>
+          <option>AMBULANCE HIACE</option>
+          <option>LAB PK</option>
+          <option>LAB SAMPLE</option>
+          <option>POLI ANAK</option>
+          <option>POLI PENYAKIT DALAM</option>
+          <option>NICU</option>
+          <option>IGD PONEK</option>
+          <option>VK</option>
+          <option>RUANG RAPAT</option>
+          <option>POLI UMUM</option>
+          <option>GUDANG</option>
+          <option>AULA RAPAT</option>
+          <option>DINAS KESEHATAN KOTA BEKASI</option>
+          <option>RUANG MANAGEMENT</option>
+          <option>POLI JANTUNG</option>
+          <option>POLI REHAB MEDIK</option>
+          <option>POLI ANYELIR</option>
+          <option>POLI THT</option>
+          <option>POLI SARAF</option>
+          <option>RUANG DIREKTUR</option>
+          <option>BANK DARAH</option>
+          <option>POLI JIWA</option>
+        </select>
+      </label>
+
+      <label>
+        Tanggal kejadian
+        <input name="tanggalKejadian" type="date" required>
+      </label>
+
+      <label class="full">
+        Uraian kejadian
+        <textarea
+          name="uraian"
+          rows="6"
+          required
+          minlength="20"
+          maxlength="6000"
+          placeholder="Tuliskan kronologi secara faktual, jelas, dan tidak menyertakan informasi yang tidak relevan."
+        ></textarea>
+      </label>
+
+      <div class="full">
+        <label for="buktiFoto">
+          Dokumentasi foto kejadian
+        </label>
+
+        <p class="tiny muted">
+          Foto bersifat opsional. Hindari memotret wajah pasien,
+          gelang identitas, rekam medis, atau informasi pribadi lainnya.
+        </p>
+
+        <input
+          type="file"
+          id="buktiFoto"
+          name="buktiFoto"
+          accept="image/*"
+          capture="environment"
+        >
+
+        <div id="previewFoto" class="hidden" style="margin-top:12px">
+          <img
+            id="gambarPreview"
+            alt="Pratinjau dokumentasi"
+            style="max-width:100%;max-height:260px;object-fit:contain;border-radius:12px"
+          >
+          <button
+            type="button"
+            id="hapusFoto"
+            class="btn subtle"
+            style="margin-top:8px"
+          >
+            Hapus foto
+          </button>
+        </div>
+      </div>
+
+      <label class="full check">
+        <input type="checkbox" required>
+        Saya menyatakan laporan ini disampaikan dengan itikad baik
+        dan informasi yang saya berikan benar menurut pengetahuan saya.
+      </label>
+
+      <button class="btn primary full" type="submit">
+        Kirim laporan
+      </button>
+
+      <p id="reportMessage" class="full muted" role="status"></p>
+
+    </form>
+
+    <p class="tiny muted">
+      Jangan masukkan diagnosis, nomor rekam medis, foto pasien,
+      atau data pribadi pasien kecuali benar-benar diperlukan
+      dan telah disetujui sesuai kebijakan rumah sakit.
+    </p>
+
+  </section>
+</main>
+
+<script>
+const inputFoto = document.getElementById("buktiFoto");
+const previewFoto = document.getElementById("previewFoto");
+const gambarPreview = document.getElementById("gambarPreview");
+const hapusFoto = document.getElementById("hapusFoto");
+
+let fotoPreviewUrl = null;
+
+inputFoto.addEventListener("change", () => {
+  const file = inputFoto.files[0];
+
+  if (fotoPreviewUrl) {
+    URL.revokeObjectURL(fotoPreviewUrl);
+    fotoPreviewUrl = null;
+  }
+
+  if (!file) {
+    previewFoto.classList.add("hidden");
+    gambarPreview.removeAttribute("src");
+    return;
+  }
+
+  if (!file.type.startsWith("image/")) {
+    alert("Silakan pilih file gambar.");
+    inputFoto.value = "";
+    previewFoto.classList.add("hidden");
+    return;
+  }
+
+  fotoPreviewUrl = URL.createObjectURL(file);
+  gambarPreview.src = fotoPreviewUrl;
+  previewFoto.classList.remove("hidden");
+});
+
+hapusFoto.addEventListener("click", () => {
+  inputFoto.value = "";
+
+  if (fotoPreviewUrl) {
+    URL.revokeObjectURL(fotoPreviewUrl);
+    fotoPreviewUrl = null;
+  }
+
+  gambarPreview.removeAttribute("src");
+  previewFoto.classList.add("hidden");
+});
+</script>
+
+<script type="module" src="./assets/js/public-report.js"></script>
+
+</body>
+</html>
