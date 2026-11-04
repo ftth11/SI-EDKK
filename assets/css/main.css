@@ -69,6 +69,90 @@
   line-height: 1;
 }
 
+
+/* =====================================================
+   DAFTAR LAPORAN SI-ETIK
+===================================================== */
+
+.report-filter-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  align-items: end;
+}
+
+.report-detail-panel {
+  margin-top: 20px;
+}
+
+.report-detail-panel h2 {
+  margin: 5px 0;
+}
+
+.report-description {
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+
+.report-evidence-section {
+  margin-top: 24px;
+}
+
+.report-evidence-section h3 {
+  margin-bottom: 12px;
+}
+
+.report-photo-loading,
+.evidence-photo-loading {
+  display: flex;
+  min-height: 100px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+  text-align: center;
+}
+
+.report-action-area {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-color, #e2e8f0);
+}
+
+.report-action-area .tiny {
+  margin-top: 10px;
+}
+
+.report-detail-panel .evidence-preview-item {
+  width: min(180px, 100%);
+}
+
+.report-detail-panel .evidence-preview-item img {
+  width: 100%;
+  height: 145px;
+  object-fit: contain;
+  background: #111827;
+}
+
+@media (max-width: 640px) {
+  .report-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-detail-panel .panel-head {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .report-detail-panel .detail-list {
+    grid-template-columns: 1fr;
+  }
+
+  .report-detail-panel .evidence-preview-item {
+    width: calc(50% - 6px);
+  }
+}
+
+
 .evidence-remove:disabled {
   opacity: 0.45;
   cursor: not-allowed;
