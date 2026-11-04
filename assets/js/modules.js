@@ -1606,8 +1606,19 @@ async function showCase(id) {
           console.warn("Bukti foto kasus:", photoError);
         }
       }
+   } catch (error) { // Penanganan kesalahan utama
+    console.error("Detail kasus:", error);
+
+    if (modal.isConnected) {
+      gallery.innerHTML = `
+        <p class="muted">
+          Informasi laporan atau bukti foto belum dapat dimuat.
+          ${escapeHtml(error.message)}
+        </p>
+      `;
+    }
   }
-}
+} // Penutup fungsi showCase
 
 
 // =====================================================
