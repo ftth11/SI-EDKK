@@ -89,7 +89,7 @@ export async function renderPage(page, profile) {
   try {
     if (page === "dashboard") return await dashboard(host, profile);
     if (page === "pelaporan") return reportPage(host, profile);
-    if (page === "laporan") return reportlistPage(host, profile);
+    if (page === "laporan") return reportListPage(host, profile);
 
     if (page === "kasus" || page === "database") {
       return caseList(host, page === "database");
