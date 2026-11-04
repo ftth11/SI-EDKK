@@ -1,7 +1,8 @@
+
 {
-  "name": "SI-EDKK - UPTD RSUD Kelas D Pondokgede",
-  "short_name": "SI-EDKK",
-  "description": "Sistem Informasi Etik dan Disiplin Komite Keperawatan",
+  "name": "SI-ETIK - UPTD RSUD Kelas D Pondokgede",
+  "short_name": "SI-ETIK",
+  "description": "Sistem Informasi Etik dan Disiplin Keperawatan",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
