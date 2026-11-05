@@ -1266,6 +1266,15 @@ function reportListPage(host, profile) {
 // =====================================================
 
 async function caseList(host, database = false) {
+  const currentRole = normalizeRole(window.currentProfile?.role);
+
+  if (currentRole !== "Admin") {
+    host.innerHTML = `
+      <div class="notice warning">
+        Anda tidak memiliki hak akses untuk melihat daftar kasus.
+      </div>`;
+    return;
+  }
   const snap = await getDocs(
     query(
       collection(db, "cases"),
@@ -1353,6 +1362,10 @@ async function caseList(host, database = false) {
 
 
 async function showCase(id) {
+  if (normalizeRole(window.currentProfile?.role) !== "Admin") {
+    toast("Anda tidak memiliki hak akses untuk melihat detail kasus.");
+    return;
+  }
   const s = await getDoc(doc(db, "cases", id));
 
   if (!s.exists()) {
