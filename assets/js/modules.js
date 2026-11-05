@@ -740,18 +740,21 @@ function formatBytes(bytes) {
 // DAFTAR LAPORAN ADMIN / KOMITE
 // =====================================================
 
-const COMMITTEE_ROLES = [
-  "Admin",
-  "Ketua Komite",
-  "Sekretaris",
-  "Anggota Komite"
-];
+const ROLE_MAP = {
+  "Admin": "Admin",
+  "Ketua Komite": "Admin",
+  "Sekretaris": "Admin",
+  "Anggota Komite": "User",
+  "Perawat": "User",
+  "Auditor": "User"
+};
 
-const CASE_CONVERT_ROLES = [
-  "Admin",
-  "Ketua Komite",
-  "Sekretaris"
-];
+function normalizeRole(role) {
+  return ROLE_MAP[role] || null;
+}
+
+const COMMITTEE_ROLES = ["Admin", "User"];
+const CASE_CONVERT_ROLES = ["Admin"];
 
 async function reportApi(path, options = {}) {
   if (!auth?.currentUser) {
@@ -796,7 +799,9 @@ async function reportApi(path, options = {}) {
 }
 
 function reportListPage(host, profile) {
-  if (!COMMITTEE_ROLES.includes(profile?.role)) {
+  const currentRole = normalizeRole(profile?.role);
+  
+  if (!["Admin", "User"].includes(currentRole)) {
     host.innerHTML = `
       <div class="notice warning">
         Anda tidak memiliki hak akses untuk melihat daftar laporan.
@@ -1071,9 +1076,9 @@ function reportListPage(host, profile) {
       }
 
       const canConvert =
-        CASE_CONVERT_ROLES.includes(profile.role) &&
+        normalizeRole(profile?.role) === "Admin" &&
         report.status === "Baru";
-
+      
       const photos = Array.isArray(report.evidence)
         ? report.evidence
         : [];
