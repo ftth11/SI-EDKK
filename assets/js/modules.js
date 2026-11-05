@@ -1384,6 +1384,7 @@ async function caseList(host, database = false) {
 }
 
 
+
 async function showCase(id) {
   const currentRole = await getActiveRole();
 
@@ -1391,7 +1392,7 @@ async function showCase(id) {
     toast("Anda tidak memiliki hak akses untuk melihat detail kasus.");
     return;
   }
-  
+
   const s = await getDoc(doc(db, "cases", id));
 
   if (!s.exists()) {
@@ -1399,14 +1400,23 @@ async function showCase(id) {
     return;
   }
 
-  const d = s.data();
+  let d = s.data();
 
-  const canViewReport = currentRole === "Admin";
+  const canViewReport = true;
 
   let reportId = d.reportId || "";
   let report = null;
   let evidence = Array.isArray(d.evidence) ? d.evidence : [];
   let photoUrls = [];
+
+  const allowedStatuses = [
+    "Dalam Telaah",
+    "Pemeriksaan",
+    "Menunggu Klarifikasi",
+    "Rekomendasi",
+    "Selesai",
+    "Ditutup"
+  ];
 
   const html = `
     <div class="modal-backdrop" id="caseModal">
@@ -1426,8 +1436,12 @@ async function showCase(id) {
           <dt>Tanggal kejadian</dt>
           <dd>${dateLabel(d.tanggalKejadian)}</dd>
 
-          <dt>Status</dt>
-          <dd>${escapeHtml(d.status || "-")}</dd>
+          <dt>Status terkini</dt>
+          <dd>
+            <strong id="caseCurrentStatus">
+              ${escapeHtml(d.status || "-")}
+            </strong>
+          </dd>
 
           <dt>Nomor laporan asal</dt>
           <dd id="caseReportNumber">
@@ -1436,17 +1450,13 @@ async function showCase(id) {
 
           <dt>Nama pelapor</dt>
           <dd id="caseReporter">
-            ${canViewReport
-              ? escapeHtml(d.namaPelapor || "-")
-              : "Informasi terbatas"}
+            ${escapeHtml(d.namaPelapor || "-")}
           </dd>
 
-          ${canViewReport ? `
-            <dt>Kontak pelapor</dt>
-            <dd id="caseReporterContact">
-              ${escapeHtml(d.kontakPelapor || "-")}
-            </dd>
-          ` : ""}
+          <dt>Kontak pelapor</dt>
+          <dd id="caseReporterContact">
+            ${escapeHtml(d.kontakPelapor || "-")}
+          </dd>
 
           <dt>Uraian</dt>
           <dd class="report-description">
@@ -1454,16 +1464,68 @@ async function showCase(id) {
           </dd>
         </dl>
 
+        <section class="case-status-section">
+          <h3>Perubahan Status Kasus</h3>
+
+          <div class="form-group">
+            <label for="caseNewStatus">Status baru</label>
+            <select id="caseNewStatus" class="form-control">
+              ${allowedStatuses.map(status => `
+                <option value="${escapeHtml(status)}"
+                  ${status === d.status ? "selected" : ""}>
+                  ${escapeHtml(status)}
+                </option>
+              `).join("")}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="caseFollowUpNote">
+              Catatan tindak lanjut
+            </label>
+
+            <textarea
+              id="caseFollowUpNote"
+              class="form-control"
+              rows="4"
+              maxlength="1000"
+              placeholder="Tuliskan hasil pemeriksaan atau tindak lanjut..."
+              required
+            ></textarea>
+
+            <small class="muted">
+              Wajib diisi, maksimal 1.000 karakter.
+            </small>
+          </div>
+
+          <button
+            type="button"
+            class="btn btn-primary"
+            id="saveCaseStatus"
+          >
+            Simpan Perubahan
+          </button>
+        </section>
+
+        <section class="case-history-section">
+          <h3>Riwayat Penanganan Kasus</h3>
+
+          <div id="caseStatusHistory">
+            <p class="muted">Memuat riwayat...</p>
+          </div>
+        </section>
+
         <section class="report-evidence-section">
-          <h3>Bukti foto</h3>
+          <h3>Bukti Foto</h3>
+
           <div id="caseEvidenceGallery" class="evidence-preview">
             <p class="muted">Memeriksa bukti foto...</p>
           </div>
         </section>
 
         <p class="tiny muted">
-          Perubahan status, penugasan, dan catatan pemeriksaan dilakukan
-          melalui fungsi backend yang memiliki audit trail.
+          Setiap perubahan status dan catatan tindak lanjut
+          dicatat dalam audit trail SI-ETIK.
         </p>
       </section>
     </div>
@@ -1488,9 +1550,141 @@ async function showCase(id) {
   };
 
   const gallery = $("#caseEvidenceGallery");
+  const historyContainer = $("#caseStatusHistory");
+  const statusSelect = $("#caseNewStatus");
+  const noteInput = $("#caseFollowUpNote");
+  const saveButton = $("#saveCaseStatus");
+
+  function renderHistory() {
+    const history = Array.isArray(d.riwayatStatus)
+      ? [...d.riwayatStatus].reverse()
+      : [];
+
+    if (!history.length) {
+      historyContainer.innerHTML = `
+        <p class="muted">
+          Belum ada riwayat perubahan status.
+        </p>
+        <p class="tiny muted">
+          Status awal: ${escapeHtml(d.status || "Dalam Telaah")}
+        </p>
+      `;
+      return;
+    }
+
+    historyContainer.innerHTML = history.map(item => `
+      <article class="case-history-item">
+        <div class="case-history-header">
+          <strong>${escapeHtml(item.status || "-")}</strong>
+          <span class="tiny muted">
+            ${dateLabel(item.waktu)}
+          </span>
+        </div>
+
+        <p>
+          ${escapeHtml(item.catatan || "-")}
+        </p>
+
+        <small class="muted">
+          Status sebelumnya:
+          ${escapeHtml(item.statusSebelumnya || "-")}
+        </small>
+
+        <br>
+
+        <small class="muted">
+          Diperbarui oleh UID:
+          ${escapeHtml(item.oleh || "-")}
+        </small>
+      </article>
+    `).join("");
+  }
+
+  renderHistory();
+
+  // Simpan perubahan status dan catatan tindak lanjut.
+  saveButton.addEventListener("click", async () => {
+    const newStatus = statusSelect.value;
+    const catatan = noteInput.value.trim();
+
+    if (!allowedStatuses.includes(newStatus)) {
+      toast("Status kasus tidak valid.", "error");
+      return;
+    }
+
+    if (!catatan) {
+      toast("Catatan tindak lanjut wajib diisi.", "error");
+      noteInput.focus();
+      return;
+    }
+
+    if (catatan.length > 1000) {
+      toast("Catatan maksimal 1.000 karakter.", "error");
+      return;
+    }
+
+    if (newStatus === d.status) {
+      toast("Silakan pilih status yang berbeda.", "error");
+      return;
+    }
+
+    const confirmed = confirm(
+      `Ubah status kasus menjadi "${newStatus}"?`
+    );
+
+    if (!confirmed) return;
+
+    saveButton.disabled = true;
+    saveButton.textContent = "Menyimpan...";
+
+    try {
+      await reportApi("/case-status", {
+        method: "POST",
+        body: JSON.stringify({
+          caseId: id,
+          status: newStatus,
+          catatan
+        })
+      });
+
+      // Ambil kembali data terbaru dari Firestore.
+      const updatedSnap = await getDoc(doc(db, "cases", id));
+
+      if (!updatedSnap.exists()) {
+        throw new Error("Data kasus tidak ditemukan setelah diperbarui.");
+      }
+
+      d = updatedSnap.data();
+
+      $("#caseCurrentStatus").textContent =
+        d.status || "-";
+
+      statusSelect.value = d.status;
+
+      noteInput.value = "";
+
+      renderHistory();
+
+      toast("Status kasus berhasil diperbarui.", "success");
+
+    } catch (error) {
+      console.error("Perubahan status kasus:", error);
+
+      toast(
+        error.message || "Gagal memperbarui status kasus.",
+        "error"
+      );
+
+    } finally {
+      if (modal.isConnected) {
+        saveButton.disabled = false;
+        saveButton.textContent = "Simpan Perubahan";
+      }
+    }
+  });
 
   try {
-    // Untuk kasus lama, cari laporan asal berdasarkan caseId.
+    // Cari laporan asal untuk kasus lama.
     if (!reportId && canViewReport) {
       const reportSnap = await getDocs(
         query(
@@ -1505,7 +1699,7 @@ async function showCase(id) {
       }
     }
 
-    // Ambil data lengkap laporan asal melalui backend.
+    // Ambil data laporan asal melalui backend.
     if (reportId && canViewReport) {
       const result = await reportApi(
         `/report?reportId=${encodeURIComponent(reportId)}`
@@ -1529,19 +1723,11 @@ async function showCase(id) {
       }
     }
 
-    if (!canViewReport) {
-      gallery.innerHTML = `
-        <p class="muted">
-          Bukti foto dan informasi pelapor hanya dapat diakses
-          oleh petugas komite yang berwenang.
-        </p>
-      `;
-      return;
-    }
-
     if (!evidence.length) {
       gallery.innerHTML = `
-        <p class="muted">Tidak ada foto bukti pada laporan ini.</p>
+        <p class="muted">
+          Tidak ada foto bukti pada laporan ini.
+        </p>
       `;
       return;
     }
@@ -1576,25 +1762,21 @@ async function showCase(id) {
           `/evidence?reportId=${encodeURIComponent(reportId)}&evidenceId=${encodeURIComponent(photo.id)}`
         );
 
-        if (!modal.isConnected) {
-          return;
-        }
+        if (!modal.isConnected) return;
 
         const objectUrl = URL.createObjectURL(blob);
         photoUrls.push(objectUrl);
 
-                
         const img = document.createElement("img");
         img.src = objectUrl;
         img.alt = "Bukti foto kasus";
         img.loading = "lazy";
         img.style.cursor = "zoom-in";
         img.title = "Klik untuk memperbesar foto";
-        
-        // Klik foto untuk membuka tampilan ukuran penuh
+
         img.addEventListener("click", () => {
           const preview = document.createElement("div");
-        
+
           preview.style.cssText = `
             position: fixed;
             inset: 0;
@@ -1606,43 +1788,48 @@ async function showCase(id) {
             padding: 20px;
             cursor: zoom-out;
           `;
-        
+
           const fullImage = document.createElement("img");
           fullImage.src = objectUrl;
           fullImage.alt = "Bukti foto kasus ukuran penuh";
-        
+
           fullImage.style.cssText = `
             max-width: 100%;
             max-height: 95vh;
             object-fit: contain;
             border-radius: 8px;
           `;
-        
+
           preview.appendChild(fullImage);
           document.body.appendChild(preview);
-        
+
           preview.addEventListener("click", () => {
             preview.remove();
           });
         });
-        
-        const loading = card.querySelector(".evidence-photo-loading");
-        
+
+        const loading = card.querySelector(
+          ".evidence-photo-loading"
+        );
+
         if (loading) {
           loading.replaceWith(img);
         }
-        
-        } catch (photoError) {
-          const loading = card.querySelector(".evidence-photo-loading");
-        
-          if (loading) {
-            loading.textContent = "Foto tidak dapat dibuka.";
-          }
-        
-          console.warn("Bukti foto kasus:", photoError);
+
+      } catch (photoError) {
+        const loading = card.querySelector(
+          ".evidence-photo-loading"
+        );
+
+        if (loading) {
+          loading.textContent = "Foto tidak dapat dibuka.";
         }
+
+        console.warn("Bukti foto kasus:", photoError);
       }
-   } catch (error) { // Penanganan kesalahan utama
+    }
+
+  } catch (error) {
     console.error("Detail kasus:", error);
 
     if (modal.isConnected) {
@@ -1654,8 +1841,7 @@ async function showCase(id) {
       `;
     }
   }
-} // Penutup fungsi showCase
-
+}
 
 // =====================================================
 // DOKUMEN
