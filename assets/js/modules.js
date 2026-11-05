@@ -1298,15 +1298,6 @@ async function caseList(host, database = false) {
     return;
   }
   
-  const currentRole = normalizeRole(window.currentProfile?.role);
-
-  if (currentRole !== "Admin") {
-    host.innerHTML = `
-      <div class="notice warning">
-        Anda tidak memiliki hak akses untuk melihat daftar kasus.
-      </div>`;
-    return;
-  }
   const snap = await getDocs(
     query(
       collection(db, "cases"),
@@ -1401,10 +1392,6 @@ async function showCase(id) {
     return;
   }
   
-  if (normalizeRole(window.currentProfile?.role) !== "Admin") {
-    toast("Anda tidak memiliki hak akses untuk melihat detail kasus.");
-    return;
-  }
   const s = await getDoc(doc(db, "cases", id));
 
   if (!s.exists()) {
@@ -1414,15 +1401,7 @@ async function showCase(id) {
 
   const d = s.data();
 
-  const committeeRoles = [
-    "Admin",
-    "Ketua Komite",
-    "Sekretaris",
-    "Anggota Komite"
-  ];
-
-  const profile = window.currentProfile || {};
-  const canViewReport = committeeRoles.includes(profile.role);
+  const canViewReport = currentRole === "Admin";
 
   let reportId = d.reportId || "";
   let report = null;
@@ -1682,64 +1661,86 @@ async function showCase(id) {
 // DOKUMEN
 // =====================================================
 
+
 async function documents(host) {
-  const snap = await getDocs(
-    query(
-      collection(db, "documents"),
-      orderBy("updatedAt", "desc"),
-      limit(100)
-    )
-  );
+  // Pemeriksaan hak akses
+  const currentRole = await getActiveRole();
 
-  host.innerHTML = `
-    <div class="page-intro">
-      <div>
-        <h1>Dokumen & Akreditasi</h1>
-        <p class="muted">
-          Repositori dokumen komite yang dapat diakses berdasarkan peran.
-        </p>
+  if (currentRole !== "Admin") {
+    host.innerHTML = `
+      <div class="notice warning">
+        Anda tidak memiliki hak akses untuk melihat dokumen internal.
+      </div>`;
+    return;
+  }
+
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, "documents"),
+        orderBy("updatedAt", "desc"),
+        limit(100)
+      )
+    );
+
+    host.innerHTML = `
+      <div class="page-intro">
+        <div>
+          <h1>Dokumen & Akreditasi</h1>
+          <p class="muted">
+            Repositori dokumen komite yang dapat diakses Admin.
+          </p>
+        </div>
       </div>
-    </div>
 
-    <section class="panel">
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Nama dokumen</th>
-              <th>Kategori</th>
-              <th>Nomor/versi</th>
-              <th>Pembaruan</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            ${snap.docs.map(x => {
-              const d = x.data();
-
-              return `
-                <tr>
-                  <td>${escapeHtml(d.nama || "-")}</td>
-                  <td>${escapeHtml(d.kategori || "-")}</td>
-                  <td>${escapeHtml(d.nomor || d.versi || "-")}</td>
-                  <td>${dateLabel(d.updatedAt)}</td>
-                </tr>`;
-            }).join("") || `
+      <section class="panel">
+        <div class="table-wrap">
+          <table>
+            <thead>
               <tr>
-                <td colspan="4" class="empty">
-                  Belum ada dokumen.
-                </td>
+                <th>Nama dokumen</th>
+                <th>Kategori</th>
+                <th>Nomor/versi</th>
+                <th>Pembaruan</th>
               </tr>
-            `}
-          </tbody>
-        </table>
-      </div>
+            </thead>
 
-      <p class="tiny muted">
-        Pengunggahan dokumen versi produksi perlu dilakukan melalui
-        alur backend terotorisasi.
-      </p>
-    </section>`;
+            <tbody>
+              ${snap.docs.map(x => {
+                const d = x.data();
+
+                return `
+                  <tr>
+                    <td>${escapeHtml(d.nama || "-")}</td>
+                    <td>${escapeHtml(d.kategori || "-")}</td>
+                    <td>${escapeHtml(d.nomor || d.versi || "-")}</td>
+                    <td>${dateLabel(d.updatedAt)}</td>
+                  </tr>`;
+              }).join("") || `
+                <tr>
+                  <td colspan="4" class="empty">
+                    Belum ada dokumen.
+                  </td>
+                </tr>
+              `}
+            </tbody>
+          </table>
+        </div>
+
+        <p class="tiny muted">
+          Pengunggahan dokumen versi produksi perlu dilakukan melalui
+          alur backend terotorisasi.
+        </p>
+      </section>`;
+
+  } catch (error) {
+    console.error("Gagal memuat dokumen:", error);
+
+    host.innerHTML = `
+      <div class="notice warning">
+        Dokumen gagal dimuat. Silakan coba kembali.
+      </div>`;
+  }
 }
 
 // =====================================================
