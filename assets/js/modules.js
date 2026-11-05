@@ -390,6 +390,32 @@ function reportPage(host, profile) {
           >
         </label>
 
+                <div class="full">
+          <h3>Identitas pihak yang dilaporkan</h3>
+          <p class="muted tiny">
+            Isi identitas pihak yang dilaporkan jika diketahui.
+            Kedua kolom berikut bersifat opsional.
+          </p>
+        </div>
+
+        <label>
+          Nama terlapor
+          <input
+            name="namaTerlapor"
+            maxlength="120"
+            placeholder="Masukkan nama pihak yang dilaporkan (opsional)"
+          >
+        </label>
+
+        <label>
+          Jabatan/unit terlapor
+          <input
+            name="jabatanTerlapor"
+            maxlength="160"
+            placeholder="Masukkan jabatan atau unit kerja (opsional)"
+          >
+        </label>
+
         <label class="full">
           Uraian kejadian
           <textarea
