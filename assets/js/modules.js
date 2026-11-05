@@ -131,14 +131,7 @@ async function dashboard(host, profile) {
 
   let reports = "-";
 
-  const committeeRoles = [
-    "Admin",
-    "Ketua Komite",
-    "Sekretaris",
-    "Anggota Komite"
-  ];
-
-  if (committeeRoles.includes(profile?.role)) {
+  if (normalizeRole(profile?.role) === "Admin") {
     try {
       reports = await count("reports");
     } catch (error) {
@@ -753,6 +746,35 @@ function normalizeRole(role) {
   return ROLE_MAP[role] || null;
 }
 
+async function getActiveRole() {
+  const currentUser = auth.currentUser;
+
+  if (!currentUser) {
+    return null;
+  }
+
+  try {
+    const userSnap = await getDoc(
+      doc(db, "users", currentUser.uid)
+    );
+
+    if (!userSnap.exists()) {
+      return null;
+    }
+
+    const userData = userSnap.data();
+
+    if (userData.aktif !== true) {
+      return null;
+    }
+
+    return normalizeRole(userData.role);
+  } catch (error) {
+    console.error("Gagal memeriksa role akun:", error);
+    return null;
+  }
+}
+
 const COMMITTEE_ROLES = ["Admin", "User"];
 const CASE_CONVERT_ROLES = ["Admin"];
 
@@ -1266,6 +1288,16 @@ function reportListPage(host, profile) {
 // =====================================================
 
 async function caseList(host, database = false) {
+  const currentRole = await getActiveRole();
+
+  if (currentRole !== "Admin") {
+    host.innerHTML = `
+      <div class="notice warning">
+        Anda tidak memiliki hak akses untuk melihat daftar kasus.
+      </div>`;
+    return;
+  }
+  
   const currentRole = normalizeRole(window.currentProfile?.role);
 
   if (currentRole !== "Admin") {
@@ -1362,6 +1394,13 @@ async function caseList(host, database = false) {
 
 
 async function showCase(id) {
+  const currentRole = await getActiveRole();
+
+  if (currentRole !== "Admin") {
+    toast("Anda tidak memiliki hak akses untuk melihat detail kasus.");
+    return;
+  }
+  
   if (normalizeRole(window.currentProfile?.role) !== "Admin") {
     toast("Anda tidak memiliki hak akses untuk melihat detail kasus.");
     return;
