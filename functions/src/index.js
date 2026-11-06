@@ -54,7 +54,12 @@ exports.submitInternalReport = onCall({region:REGION}, async request=>{
   if(!request.auth) throw new HttpsError("unauthenticated","Silakan masuk.");
   const p=await profileFor(request.auth.uid);
   const d=request.data||{};
-  if(!["Admin","Ketua Komite","Sekretaris","Anggota Komite","Perawat"].includes(p.role)) throw new HttpsError("permission-denied","Tidak memiliki hak pelaporan.");
+  if (!["Admin", "User"].includes(p.role)) {
+    throw new HttpsError(
+      "permission-denied",
+      "Hanya Admin dan User yang dapat membuat laporan."
+    );
+  }
   const jenis=clean(d.jenis,40), unit=clean(d.unit,120), uraian=clean(d.uraian,6000);
   const nomor=await nextNumber("LAP");
   const ref=await db.collection("reports").add({nomor,jenis,unit,uraian,tanggalKejadian:clean(d.tanggalKejadian,20),
@@ -70,7 +75,12 @@ exports.submitInternalReport = onCall({region:REGION}, async request=>{
 exports.convertReportToCase = onCall({region:REGION}, async request=>{
   if(!request.auth) throw new HttpsError("unauthenticated","Silakan masuk.");
   const p=await profileFor(request.auth.uid);
-  if(!["Admin","Ketua Komite","Sekretaris"].includes(p.role)) throw new HttpsError("permission-denied","Hanya ketua/sekretaris/admin.");
+  if (p.role !== "Admin") {
+    throw new HttpsError(
+      "permission-denied",
+      "Hanya Admin yang dapat mengonversi laporan menjadi kasus."
+    );
+  }
   const reportId=clean(request.data?.reportId,150);
   const reportRef=db.doc(`reports/${reportId}`);
   const result=await db.runTransaction(async tx=>{
@@ -92,7 +102,12 @@ exports.convertReportToCase = onCall({region:REGION}, async request=>{
 exports.updateCaseStatus = onCall({region:REGION}, async request=>{
   if(!request.auth) throw new HttpsError("unauthenticated","Silakan masuk.");
   const p=await profileFor(request.auth.uid);
-  if(!["Admin","Ketua Komite","Sekretaris"].includes(p.role)) throw new HttpsError("permission-denied","Tidak memiliki hak mengubah status.");
+  if (p.role !== "Admin") {
+    throw new HttpsError(
+      "permission-denied",
+      "Hanya Admin yang dapat mengubah status kasus."
+    );
+  }
   const caseId=clean(request.data?.caseId,150), status=clean(request.data?.status,60);
   const allowed=["Dalam Telaah","Pemeriksaan","Menunggu Klarifikasi","Rekomendasi","Selesai","Ditutup"];
   if(!allowed.includes(status)) throw new HttpsError("invalid-argument","Status tidak valid.");
@@ -106,8 +121,13 @@ exports.setUserRole = onCall({region:REGION}, async request=>{
   const p=await profileFor(request.auth.uid);
   if(p.role!=="Admin") throw new HttpsError("permission-denied","Hanya admin.");
   const uid=clean(request.data?.uid,150), role=clean(request.data?.role,50);
-  const allowed=["Admin","Ketua Komite","Sekretaris","Anggota Komite","Perawat","Auditor"];
-  if(!allowed.includes(role)) throw new HttpsError("invalid-argument","Role tidak dikenal.");
+  const allowed = ["Admin", "User"];
+  if (!allowed.includes(role)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Role hanya boleh Admin atau User."
+    );
+  }
   await db.doc(`users/${uid}`).set({role,updatedAt:FieldValue.serverTimestamp(),aktif:true},{merge:true});
   await audit(request.auth.uid,"USER_ROLE_SET",uid,{role});
   return {ok:true};
