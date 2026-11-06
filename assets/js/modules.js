@@ -1031,11 +1031,21 @@ function reportListPage(host, profile) {
                 </td>
 
                 <td>
+                  
+                <button
+                  class="text-btn"
+                  data-report-detail="${escapeHtml(report.reportId)}"
+                >
+                  Detail
+                </button>
+                
+                ${report.status === "Baru" ? `
                   <button
                     class="text-btn"
-                    data-report-detail="${escapeHtml(report.reportId)}"
+                    data-report-delete="${escapeHtml(report.reportId)}"
+                    style="color:#dc2626;"
                   >
-                    Detail
+                    Hapus
                   </button>
                 </td>
               </tr>
@@ -1054,6 +1064,42 @@ function reportListPage(host, profile) {
     tableContainer.querySelectorAll("[data-report-detail]").forEach(button => {
       button.addEventListener("click", () => {
         openReportDetail(button.dataset.reportDetail);
+      });
+    });
+
+    tableContainer.querySelectorAll("[data-report-delete]").forEach(button => {
+      button.addEventListener("click", async () => {
+        const reportId = button.dataset.reportDelete;
+    
+        const confirmed = window.confirm(
+          "Apakah Anda yakin ingin menghapus laporan ini?\n\n" +
+          "Laporan tidak akan tampil lagi dalam daftar aktif. " +
+          "Riwayat audit tetap tersimpan."
+        );
+    
+        if (!confirmed) return;
+    
+        button.disabled = true;
+        button.textContent = "Menghapus...";
+    
+        try {
+          await reportApi("/delete-report", {
+            method: "POST",
+            body: JSON.stringify({ reportId })
+          });
+    
+          alert("Laporan berhasil dihapus.");
+    
+          await loadReports();
+    
+        } catch (error) {
+          alert(
+            error.message || "Laporan gagal dihapus."
+          );
+    
+          button.disabled = false;
+          button.textContent = "Hapus";
+        }
       });
     });
   }
