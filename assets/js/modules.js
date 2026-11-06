@@ -389,12 +389,12 @@ function reportPage(host, profile) {
             placeholder="Nomor telepon atau email (opsional)"
           >
         </label>
-
-                <div class="full">
+                
+        <div class="full">
           <h3>Identitas pihak yang dilaporkan</h3>
           <p class="muted tiny">
             Isi identitas pihak yang dilaporkan jika diketahui.
-            Kedua kolom berikut bersifat opsional.
+            Semua kolom berikut bersifat opsional.
           </p>
         </div>
 
@@ -404,6 +404,15 @@ function reportPage(host, profile) {
             name="namaTerlapor"
             maxlength="120"
             placeholder="Masukkan nama pihak yang dilaporkan (opsional)"
+          >
+        </label>
+
+        <label>
+          Kontak terlapor
+          <input
+            name="kontakTerlapor"
+            maxlength="160"
+            placeholder="Nomor telepon atau email (opsional)"
           >
         </label>
 
@@ -1157,8 +1166,18 @@ function reportListPage(host, profile) {
             <dt>Nama pelapor</dt>
             <dd>${escapeHtml(report.namaPelapor || "-")}</dd>
 
+            
             <dt>Kontak pelapor</dt>
             <dd>${escapeHtml(report.kontakPelapor || "-")}</dd>
+
+            <dt>Nama terlapor</dt>
+            <dd>${escapeHtml(report.namaTerlapor || "-")}</dd>
+
+            <dt>Kontak terlapor</dt>
+            <dd>${escapeHtml(report.kontakTerlapor || "-")}</dd>
+
+            <dt>Jabatan/unit terlapor</dt>
+            <dd>${escapeHtml(report.jabatanTerlapor || "-")}</dd>
 
             <dt>Status</dt>
             <dd>${escapeHtml(report.status || "-")}</dd>
