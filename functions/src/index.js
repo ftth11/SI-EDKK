@@ -84,9 +84,30 @@ exports.convertReportToCase = onCall({region:REGION}, async request=>{
   const reportId=clean(request.data?.reportId,150);
   const reportRef=db.doc(`reports/${reportId}`);
   const result=await db.runTransaction(async tx=>{
-    const snap=await tx.get(reportRef);
-    if(!snap.exists) throw new HttpsError("not-found","Laporan tidak ditemukan.");
-    if(snap.data().status!=="Baru") throw new HttpsError("failed-precondition","Laporan sudah diproses.");
+    const snap = await tx.get(reportRef);
+
+    if (!snap.exists) {
+      throw new HttpsError(
+        "not-found",
+        "Laporan tidak ditemukan."
+      );
+    }
+    
+    const reportData = snap.data();
+    
+    if (reportData.deletedAt) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Laporan yang sudah dihapus tidak dapat dikonversi."
+      );
+    }
+    
+    if (reportData.status !== "Baru") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Laporan sudah diproses."
+      );
+    }
     const nomor=await nextNumber("KAS");
     const caseRef=db.collection("cases").doc();
     tx.set(caseRef,{nomor,reportId,jenis:snap.data().jenis,unit:snap.data().unit,uraian:snap.data().uraian,
@@ -116,19 +137,64 @@ exports.updateCaseStatus = onCall({region:REGION}, async request=>{
   return {ok:true};
 });
 
-exports.setUserRole = onCall({region:REGION}, async request=>{
-  if(!request.auth) throw new HttpsError("unauthenticated","Silakan masuk.");
-  const p=await profileFor(request.auth.uid);
-  if(p.role!=="Admin") throw new HttpsError("permission-denied","Hanya admin.");
-  const uid=clean(request.data?.uid,150), role=clean(request.data?.role,50);
+
+exports.setUserRole = onCall({ region: REGION }, async request => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "Silakan masuk."
+    );
+  }
+
+  const adminProfile = await profileFor(request.auth.uid);
+
+  if (adminProfile.role !== "Admin") {
+    throw new HttpsError(
+      "permission-denied",
+      "Hanya Admin yang dapat mengubah role akun."
+    );
+  }
+
+  const uid = clean(request.data?.uid, 150);
+  const role = clean(request.data?.role, 50);
+
   const allowed = ["Admin", "User"];
+
   if (!allowed.includes(role)) {
     throw new HttpsError(
       "invalid-argument",
       "Role hanya boleh Admin atau User."
     );
   }
-  await db.doc(`users/${uid}`).set({role,updatedAt:FieldValue.serverTimestamp(),aktif:true},{merge:true});
-  await audit(request.auth.uid,"USER_ROLE_SET",uid,{role});
-  return {ok:true};
+
+  if (uid === request.auth.uid) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Admin tidak dapat mengubah role akunnya sendiri."
+    );
+  }
+
+  const userRef = db.doc(`users/${uid}`);
+  const userSnap = await userRef.get();
+
+  if (!userSnap.exists) {
+    throw new HttpsError(
+      "not-found",
+      "Akun pengguna tidak ditemukan."
+    );
+  }
+
+  await userRef.update({
+    role,
+    updatedAt: FieldValue.serverTimestamp()
+  });
+
+  await audit(
+    request.auth.uid,
+    "USER_ROLE_SET",
+    uid,
+    { role }
+  );
+
+  return { ok: true };
 });
