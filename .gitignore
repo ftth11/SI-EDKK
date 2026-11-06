@@ -1,6 +1,0 @@
-node_modules/
-functions/node_modules/
-.firebase/
-.firebaserc.local
-.env*
-.DS_Store
