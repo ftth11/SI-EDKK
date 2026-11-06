@@ -768,17 +768,8 @@ function formatBytes(bytes) {
 // DAFTAR LAPORAN ADMIN / KOMITE
 // =====================================================
 
-const ROLE_MAP = {
-  "Admin": "Admin",
-  "Ketua Komite": "Admin",
-  "Sekretaris": "Admin",
-  "Anggota Komite": "User",
-  "Perawat": "User",
-  "Auditor": "User"
-};
-
 function normalizeRole(role) {
-  return ROLE_MAP[role] || null;
+  return ["Admin", "User"].includes(role) ? role : null;
 }
 
 async function getActiveRole() {
