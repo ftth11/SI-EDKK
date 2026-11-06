@@ -1029,25 +1029,24 @@ function reportListPage(host, profile) {
                     ${escapeHtml(report.status || "Baru")}
                   </span>
                 </td>
-
-                <td>
-                  
-                <button
-                  class="text-btn"
-                  data-report-detail="${escapeHtml(report.reportId)}"
-                >
-                  Detail
-                </button>
                 
-                ${report.status === "Baru" ? `
+                <td>
                   <button
                     class="text-btn"
-                    data-report-delete="${escapeHtml(report.reportId)}"
-                    style="color:#dc2626;"
+                    data-report-detail="${escapeHtml(report.reportId)}"
                   >
-                    Hapus
+                    Detail
                   </button>
-                  : ""}
+                
+                  ${report.status === "Baru" ? `
+                    <button
+                      class="text-btn"
+                      data-report-delete="${escapeHtml(report.reportId)}"
+                      style="color:#dc2626;"
+                    >
+                      Hapus
+                    </button>
+                  ` : ""}
                 </td>
               </tr>
             `).join("") || `
