@@ -1484,6 +1484,16 @@ async function showCase(id) {
             ${escapeHtml(d.kontakPelapor || "-")}
           </dd>
 
+          <dt>Nama terlapor</dt>
+          <dd id="caseReportedPerson">
+            ${escapeHtml(d.namaTerlapor || "-")}
+          </dd>
+          
+          <dt>Jabatan/unit terlapor</dt>
+          <dd id="caseReportedPosition">
+            ${escapeHtml(d.jabatanTerlapor || "-")}
+          </dd>
+
           <dt>Uraian</dt>
           <dd class="report-description">
             ${escapeHtml(d.uraian || "-")}
@@ -1746,6 +1756,12 @@ async function showCase(id) {
 
         $("#caseReporterContact").textContent =
           report.kontakPelapor || d.kontakPelapor || "-";
+
+        $("#caseReportedPerson").textContent =
+          d.namaTerlapor || report.namaTerlapor || "-";
+        
+        $("#caseReportedPosition").textContent =
+          d.jabatanTerlapor || report.jabatanTerlapor || "-";
       }
     }
 
