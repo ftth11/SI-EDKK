@@ -31,7 +31,7 @@ async function nextNumber(prefix) {
 async function audit(actorUid, action, target, details={}) {
   await db.collection("auditLogs").add({actorUid,action,target,details,createdAt:FieldValue.serverTimestamp()});
 }
-exports.healthCheck = onRequest({region:REGION}, (req,res)=>res.status(200).json({service:"SI-EDKK",status:"ok"}));
+exports.healthCheck = onRequest({region:REGION}, (req,res)=>res.status(200).json({service:"SI-ETIK",status:"ok"}));
 
 exports.submitPublicReport = onCall({region:REGION, enforceAppCheck:false}, async request=>{
   const d=request.data||{};
@@ -74,78 +74,184 @@ exports.submitInternalReport = onCall({region:REGION}, async request=>{
 
 // Kasus dibuat dari laporan setelah pemeriksaan awal oleh petugas komite.
 // Callable ini sengaja mensyaratkan role komite dan mencatat audit trail.
-exports.convertReportToCase = onCall({region:REGION}, async request=>{
-  if(!request.auth) throw new HttpsError("unauthenticated","Silakan masuk.");
-  const p=await profileFor(request.auth.uid);
+
+exports.convertReportToCase = onCall({ region: REGION }, async request => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Silakan masuk.");
+  }
+
+  const p = await profileFor(request.auth.uid);
+
   if (p.role !== "Admin") {
     throw new HttpsError(
       "permission-denied",
       "Hanya Admin yang dapat mengonversi laporan menjadi kasus."
     );
   }
-  const reportId=clean(request.data?.reportId,150);
-  const reportRef=db.doc(`reports/${reportId}`);
-  const result=await db.runTransaction(async tx=>{
-    const snap = await tx.get(reportRef);
 
-    if (!snap.exists) {
-      throw new HttpsError(
-        "not-found",
-        "Laporan tidak ditemukan."
-      );
+  const reportId = clean(request.data?.reportId, 150);
+
+  const reportRef = db.doc(`reports/${reportId}`);
+
+  const year = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric"
+  }).format(new Date());
+
+  const counterRef = db.doc(`counters/KAS-${year}`);
+  const caseRef = db.collection("cases").doc();
+
+  const result = await db.runTransaction(async tx => {
+    const reportSnap = await tx.get(reportRef);
+
+    if (!reportSnap.exists) {
+      throw new HttpsError("not-found", "Laporan tidak ditemukan.");
     }
-    
-    const reportData = snap.data();
-    
+
+    const reportData = reportSnap.data();
+
     if (reportData.deletedAt) {
       throw new HttpsError(
         "failed-precondition",
         "Laporan yang sudah dihapus tidak dapat dikonversi."
       );
     }
-    
+
     if (reportData.status !== "Baru") {
       throw new HttpsError(
         "failed-precondition",
         "Laporan sudah diproses."
       );
     }
-    const nomor=await nextNumber("KAS");
-    const caseRef=db.collection("cases").doc();
-    tx.set(caseRef,{nomor,reportId,jenis:snap.data().jenis,unit:snap.data().unit,uraian:snap.data().uraian,
-      tanggalKejadian:snap.data().tanggalKejadian,status:"Dalam Telaah",assignedUids:[],auditVisible:false,
-      createdAt:FieldValue.serverTimestamp(),createdBy:request.auth.uid});
-    tx.update(reportRef,{status:"Dikonversi",caseId:caseRef.id,updatedAt:FieldValue.serverTimestamp()});
-    return {caseId:caseRef.id,nomor};
+
+    const counterSnap = await tx.get(counterRef);
+    const nextValue = (counterSnap.exists
+      ? Number(counterSnap.data().value) || 0
+      : 0) + 1;
+
+    const nomor = `KAS/${year}/${String(nextValue).padStart(4, "0")}`;
+
+    tx.set(counterRef, {
+      value: nextValue,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    tx.set(caseRef, {
+      nomor,
+      reportId,
+      jenis: reportData.jenis,
+      unit: reportData.unit,
+      uraian: reportData.uraian,
+      tanggalKejadian: reportData.tanggalKejadian,
+      status: "Dalam Telaah",
+      assignedUids: [],
+      auditVisible: false,
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: request.auth.uid
+    });
+
+    tx.update(reportRef, {
+      status: "Dikonversi",
+      caseId: caseRef.id,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+
+    return {
+      caseId: caseRef.id,
+      nomor
+    };
   });
-  await audit(request.auth.uid,"REPORT_CONVERTED_TO_CASE",result.caseId,{nomor:result.nomor,reportId});
+
+  await audit(
+    request.auth.uid,
+    "REPORT_CONVERTED_TO_CASE",
+    result.caseId,
+    {
+      nomor: result.nomor,
+      reportId
+    }
+  );
+
   return result;
 });
 
-exports.updateCaseStatus = onCall({region:REGION}, async request=>{
-  if(!request.auth) throw new HttpsError("unauthenticated","Silakan masuk.");
-  const p=await profileFor(request.auth.uid);
+
+
+exports.updateCaseStatus = onCall({ region: REGION }, async request => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Silakan masuk.");
+  }
+
+  const p = await profileFor(request.auth.uid);
+
   if (p.role !== "Admin") {
     throw new HttpsError(
       "permission-denied",
       "Hanya Admin yang dapat mengubah status kasus."
     );
   }
-  const caseId=clean(request.data?.caseId,150), status=clean(request.data?.status,60);
-  const allowed=["Dalam Telaah","Pemeriksaan","Menunggu Klarifikasi","Rekomendasi","Selesai","Ditutup"];
-  if(!allowed.includes(status)) throw new HttpsError("invalid-argument","Status tidak valid.");
-  await db.doc(`cases/${caseId}`).update({status,updatedAt:FieldValue.serverTimestamp(),updatedBy:request.auth.uid});
-  await audit(request.auth.uid,"CASE_STATUS_UPDATED",caseId,{status});
-  return {ok:true};
-});
 
+  const caseId = clean(request.data?.caseId, 150);
+  const status = clean(request.data?.status, 60);
+
+  const allowed = [
+    "Dalam Telaah",
+    "Pemeriksaan",
+    "Menunggu Klarifikasi",
+    "Rekomendasi",
+    "Selesai",
+    "Ditutup"
+  ];
+
+  if (!allowed.includes(status)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Status tidak valid."
+    );
+  }
+
+  const caseRef = db.doc(`cases/${caseId}`);
+
+  const result = await db.runTransaction(async tx => {
+    const snap = await tx.get(caseRef);
+
+    if (!snap.exists) {
+      throw new HttpsError(
+        "not-found",
+        "Data kasus tidak ditemukan."
+      );
+    }
+
+    const oldStatus = snap.data().status || "";
+
+    if (oldStatus === status) {
+      return false;
+    }
+
+    tx.update(caseRef, {
+      status,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: request.auth.uid
+    });
+
+    return true;
+  });
+
+  if (result) {
+    await audit(
+      request.auth.uid,
+      "CASE_STATUS_UPDATED",
+      caseId,
+      { status }
+    );
+  }
+
+  return { ok: true };
+});
 
 exports.setUserRole = onCall({ region: REGION }, async request => {
   if (!request.auth) {
-    throw new HttpsError(
-      "unauthenticated",
-      "Silakan masuk."
-    );
+    throw new HttpsError("unauthenticated", "Silakan masuk.");
   }
 
   const adminProfile = await profileFor(request.auth.uid);
@@ -158,11 +264,9 @@ exports.setUserRole = onCall({ region: REGION }, async request => {
   }
 
   const uid = clean(request.data?.uid, 150);
-  const role = clean(request.data?.role, 50);
+  const role = clean(request.data?.role, 20);
 
-  const allowed = ["Admin", "User"];
-
-  if (!allowed.includes(role)) {
+  if (!["Admin", "User"].includes(role)) {
     throw new HttpsError(
       "invalid-argument",
       "Role hanya boleh Admin atau User."
@@ -177,39 +281,42 @@ exports.setUserRole = onCall({ region: REGION }, async request => {
   }
 
   const userRef = db.doc(`users/${uid}`);
-  const userSnap = await userRef.get();
 
-  if (!userSnap.exists) {
-    throw new HttpsError(
-      "not-found",
-      "Akun pengguna tidak ditemukan."
-    );
-  }
+  await db.runTransaction(async tx => {
+    const userSnap = await tx.get(userRef);
 
-  const targetUser = userSnap.data();
-
-  // Jangan sampai Admin aktif terakhir kehilangan role Admin.
-  if (
-    targetUser.role === "Admin" &&
-    targetUser.aktif === true &&
-    role !== "Admin"
-  ) {
-    const activeAdmins = await db.collection("users")
-      .where("role", "==", "Admin")
-      .where("aktif", "==", true)
-      .get();
-  
-    if (activeAdmins.size <= 1) {
+    if (!userSnap.exists) {
       throw new HttpsError(
-        "failed-precondition",
-        "Role Admin tidak dapat diubah karena akun tersebut adalah Admin aktif terakhir."
+        "not-found",
+        "Akun pengguna tidak ditemukan."
       );
     }
-  }
 
-  await userRef.update({
-    role,
-    updatedAt: FieldValue.serverTimestamp()
+    const target = userSnap.data();
+
+    if (
+      target.role === "Admin" &&
+      target.aktif === true &&
+      role !== "Admin"
+    ) {
+      const adminQuery = db.collection("users")
+        .where("role", "==", "Admin")
+        .where("aktif", "==", true);
+
+      const adminsSnap = await tx.get(adminQuery);
+
+      if (adminsSnap.size <= 1) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Admin aktif terakhir tidak dapat diubah menjadi User."
+        );
+      }
+    }
+
+    tx.update(userRef, {
+      role,
+      updatedAt: FieldValue.serverTimestamp()
+    });
   });
 
   await audit(
@@ -221,7 +328,6 @@ exports.setUserRole = onCall({ region: REGION }, async request => {
 
   return { ok: true };
 });
-
 
 // ADMIN: Membuat akun pengguna baru
 
@@ -321,6 +427,7 @@ exports.createManagedUser = onCall({ region: REGION }, async request => {
 
 // ADMIN: Melihat daftar akun pengguna
 
+
 exports.listManagedUsers = onCall({ region: REGION }, async request => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Silakan masuk.");
@@ -337,7 +444,7 @@ exports.listManagedUsers = onCall({ region: REGION }, async request => {
 
   const snapshot = await db.collection("users").get();
 
-  const legacyRoleMap = {
+  const roleMap = {
     "Admin": "Admin",
     "Ketua Komite": "Admin",
     "Sekretaris": "Admin",
@@ -347,19 +454,50 @@ exports.listManagedUsers = onCall({ region: REGION }, async request => {
     "Auditor": "User"
   };
 
-  const users = snapshot.docs.map(doc => {
-    const data = doc.data();
+  const batch = db.batch();
+  const users = [];
+  let migrated = 0;
 
-    return {
+  for (const doc of snapshot.docs) {
+    const data = doc.data();
+    const normalizedRole = roleMap[data.role];
+
+    if (!normalizedRole) {
+      throw new HttpsError(
+        "failed-precondition",
+        `Role akun ${data.email || doc.id} tidak dikenali. Periksa data akun tersebut.`
+      );
+    }
+
+    if (data.role !== normalizedRole) {
+      batch.update(doc.ref, {
+        role: normalizedRole,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      migrated++;
+    }
+
+    users.push({
       uid: doc.id,
       nama: data.nama || data.displayName || "",
       email: data.email || "",
-      role: legacyRoleMap[data.role] || "User",
+      role: normalizedRole,
       aktif: data.aktif === true,
       createdAt: data.createdAt || null,
       updatedAt: data.updatedAt || null
-    };
-  });
+    });
+  }
+
+  if (migrated > 0) {
+    await batch.commit();
+
+    await audit(
+      request.auth.uid,
+      "LEGACY_ROLES_MIGRATED",
+      "users",
+      { migrated }
+    );
+  }
 
   users.sort((a, b) =>
     a.nama.localeCompare(b.nama, "id", {
@@ -370,12 +508,14 @@ exports.listManagedUsers = onCall({ region: REGION }, async request => {
   return {
     users,
     total: users.length,
-    totalAktif: users.filter(user => user.aktif).length,
-    totalNonaktif: users.filter(user => !user.aktif).length
+    totalAktif: users.filter(u => u.aktif).length,
+    totalNonaktif: users.filter(u => !u.aktif).length,
+    migrated
   };
 });
 
 // ADMIN: Mengaktifkan atau menonaktifkan akun
+
 
 exports.setUserActive = onCall({ region: REGION }, async request => {
   if (!request.auth) {
@@ -409,76 +549,82 @@ exports.setUserActive = onCall({ region: REGION }, async request => {
   }
 
   const userRef = db.doc(`users/${uid}`);
-  const userSnap = await userRef.get();
+  const authUser = await auth.getUser(uid);
 
-  if (!userSnap.exists) {
-    throw new HttpsError(
-      "not-found",
-      "Akun pengguna tidak ditemukan."
-    );
-  }
+  const previousAktif = await db.runTransaction(async tx => {
+    const userSnap = await tx.get(userRef);
 
-  const target = userSnap.data();
-
-  if (target.aktif === aktif) {
-    return { ok: true, aktif };
-  }
-
-  if (!aktif && target.role === "Admin" && target.aktif === true) {
-    const activeAdmins = await db.collection("users")
-      .where("role", "==", "Admin")
-      .where("aktif", "==", true)
-      .get();
-
-    if (activeAdmins.size <= 1) {
+    if (!userSnap.exists) {
       throw new HttpsError(
-        "failed-precondition",
-        "Admin aktif terakhir tidak dapat dinonaktifkan."
+        "not-found",
+        "Akun pengguna tidak ditemukan."
       );
     }
-  }
 
-  const authUser = await auth.getUser(uid);
+    const target = userSnap.data();
+    const previous = target.aktif === true;
+
+    if (previous === aktif) {
+      return previous;
+    }
+
+    if (!aktif && target.role === "Admin" && previous) {
+      const adminQuery = db.collection("users")
+        .where("role", "==", "Admin")
+        .where("aktif", "==", true);
+
+      const adminsSnap = await tx.get(adminQuery);
+
+      if (adminsSnap.size <= 1) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Admin aktif terakhir tidak dapat dinonaktifkan."
+        );
+      }
+    }
+
+    tx.update(userRef, {
+      aktif,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+
+    return previous;
+  });
+
+  if (previousAktif === aktif) {
+    return { ok: true, aktif };
+  }
 
   try {
     await auth.updateUser(uid, {
       disabled: !aktif
     });
-
-    await userRef.update({
-      aktif,
-      updatedAt: FieldValue.serverTimestamp()
-    });
-
-    await audit(
-      request.auth.uid,
-      aktif ? "USER_ACTIVATED" : "USER_DEACTIVATED",
-      uid,
-      { email: target.email || "" }
-    );
-
-    return { ok: true, aktif };
-
   } catch (error) {
-    // Kembalikan status Firebase Authentication.
-    await auth.updateUser(uid, {
-      disabled: authUser.disabled
-    }).catch(() => {});
+    // Pulihkan status Firestore jika perubahan Auth gagal.
+    await db.runTransaction(async tx => {
+      const snap = await tx.get(userRef);
 
-    // Kembalikan status Firestore jika sudah sempat berubah.
-    await userRef.update({
-      aktif: target.aktif,
-      updatedAt: FieldValue.serverTimestamp()
+      if (snap.exists && snap.data().aktif === aktif) {
+        tx.update(userRef, {
+          aktif: previousAktif,
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      }
     }).catch(() => {});
-
-    if (error instanceof HttpsError) {
-      throw error;
-    }
 
     throw new HttpsError(
       "internal",
-      "Gagal mengubah status akun. Silakan periksa kembali."
+      "Gagal mengubah status akun. Status sebelumnya dipulihkan."
     );
   }
+
+  await audit(
+    request.auth.uid,
+    aktif ? "USER_ACTIVATED" : "USER_DEACTIVATED",
+    uid,
+    { email: authUser.email || "" }
+  );
+
+  return { ok: true, aktif };
 });
 
