@@ -224,6 +224,7 @@ exports.setUserRole = onCall({ region: REGION }, async request => {
 
 
 // ADMIN: Membuat akun pengguna baru
+
 exports.createManagedUser = onCall({ region: REGION }, async request => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Silakan masuk.");
@@ -232,7 +233,10 @@ exports.createManagedUser = onCall({ region: REGION }, async request => {
   const adminProfile = await profileFor(request.auth.uid);
 
   if (adminProfile.role !== "Admin") {
-    throw new HttpsError("permission-denied", "Hanya Admin yang dapat membuat akun.");
+    throw new HttpsError(
+      "permission-denied",
+      "Hanya Admin yang dapat membuat akun."
+    );
   }
 
   const email = clean(request.data?.email, 160).toLowerCase();
@@ -245,14 +249,21 @@ exports.createManagedUser = onCall({ region: REGION }, async request => {
   }
 
   if (typeof password !== "string" || password.length < 8) {
-    throw new HttpsError("invalid-argument", "Password minimal 8 karakter.");
+    throw new HttpsError(
+      "invalid-argument",
+      "Password minimal 8 karakter."
+    );
   }
 
   if (!["Admin", "User"].includes(role)) {
-    throw new HttpsError("invalid-argument", "Role hanya boleh Admin atau User.");
+    throw new HttpsError(
+      "invalid-argument",
+      "Role hanya boleh Admin atau User."
+    );
   }
 
-  let newUser;
+  let newUser = null;
+  let profileCreated = false;
 
   try {
     newUser = await auth.createUser({
@@ -262,7 +273,7 @@ exports.createManagedUser = onCall({ region: REGION }, async request => {
       disabled: false
     });
 
-    await db.doc(`users/${newUser.uid}`).set({
+    await db.doc(`users/${newUser.uid}`).create({
       uid: newUser.uid,
       email,
       nama,
@@ -273,10 +284,14 @@ exports.createManagedUser = onCall({ region: REGION }, async request => {
       updatedAt: FieldValue.serverTimestamp()
     });
 
-    await audit(request.auth.uid, "USER_CREATED", newUser.uid, {
-      email,
-      role
-    });
+    profileCreated = true;
+
+    await audit(
+      request.auth.uid,
+      "USER_CREATED",
+      newUser.uid,
+      { email, role }
+    );
 
     return {
       ok: true,
@@ -286,20 +301,26 @@ exports.createManagedUser = onCall({ region: REGION }, async request => {
 
   } catch (error) {
     if (newUser) {
+      if (profileCreated) {
+        await db.doc(`users/${newUser.uid}`).delete().catch(() => {});
+      }
+
       await auth.deleteUser(newUser.uid).catch(() => {});
     }
 
-    if (error instanceof HttpsError) throw error;
+    if (error instanceof HttpsError) {
+      throw error;
+    }
 
     throw new HttpsError(
       "internal",
-      "Gagal membuat akun pengguna."
+      "Gagal membuat akun pengguna. Silakan coba kembali."
     );
   }
 });
 
-
 // ADMIN: Melihat daftar akun pengguna
+
 exports.listManagedUsers = onCall({ region: REGION }, async request => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Silakan masuk.");
@@ -308,28 +329,54 @@ exports.listManagedUsers = onCall({ region: REGION }, async request => {
   const adminProfile = await profileFor(request.auth.uid);
 
   if (adminProfile.role !== "Admin") {
-    throw new HttpsError("permission-denied", "Hanya Admin yang dapat melihat daftar akun.");
+    throw new HttpsError(
+      "permission-denied",
+      "Hanya Admin yang dapat melihat daftar akun."
+    );
   }
 
   const snapshot = await db.collection("users").get();
+
+  const legacyRoleMap = {
+    "Admin": "Admin",
+    "Ketua Komite": "Admin",
+    "Sekretaris": "Admin",
+    "User": "User",
+    "Anggota Komite": "User",
+    "Perawat": "User",
+    "Auditor": "User"
+  };
 
   const users = snapshot.docs.map(doc => {
     const data = doc.data();
 
     return {
       uid: doc.id,
-      nama: data.nama || "",
+      nama: data.nama || data.displayName || "",
       email: data.email || "",
-      role: data.role || "User",
-      aktif: data.aktif === true
+      role: legacyRoleMap[data.role] || "User",
+      aktif: data.aktif === true,
+      createdAt: data.createdAt || null,
+      updatedAt: data.updatedAt || null
     };
   });
 
-  return { users };
+  users.sort((a, b) =>
+    a.nama.localeCompare(b.nama, "id", {
+      sensitivity: "base"
+    })
+  );
+
+  return {
+    users,
+    total: users.length,
+    totalAktif: users.filter(user => user.aktif).length,
+    totalNonaktif: users.filter(user => !user.aktif).length
+  };
 });
 
-
 // ADMIN: Mengaktifkan atau menonaktifkan akun
+
 exports.setUserActive = onCall({ region: REGION }, async request => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Silakan masuk.");
@@ -338,14 +385,20 @@ exports.setUserActive = onCall({ region: REGION }, async request => {
   const adminProfile = await profileFor(request.auth.uid);
 
   if (adminProfile.role !== "Admin") {
-    throw new HttpsError("permission-denied", "Hanya Admin yang dapat mengubah status akun.");
+    throw new HttpsError(
+      "permission-denied",
+      "Hanya Admin yang dapat mengubah status akun."
+    );
   }
 
   const uid = clean(request.data?.uid, 150);
   const aktif = request.data?.aktif;
 
   if (typeof aktif !== "boolean") {
-    throw new HttpsError("invalid-argument", "Status akun tidak valid.");
+    throw new HttpsError(
+      "invalid-argument",
+      "Status akun tidak valid."
+    );
   }
 
   if (uid === request.auth.uid && !aktif) {
@@ -359,12 +412,19 @@ exports.setUserActive = onCall({ region: REGION }, async request => {
   const userSnap = await userRef.get();
 
   if (!userSnap.exists) {
-    throw new HttpsError("not-found", "Akun pengguna tidak ditemukan.");
+    throw new HttpsError(
+      "not-found",
+      "Akun pengguna tidak ditemukan."
+    );
   }
 
   const target = userSnap.data();
 
-  if (!aktif && target.role === "Admin") {
+  if (target.aktif === aktif) {
+    return { ok: true, aktif };
+  }
+
+  if (!aktif && target.role === "Admin" && target.aktif === true) {
     const activeAdmins = await db.collection("users")
       .where("role", "==", "Admin")
       .where("aktif", "==", true)
@@ -373,7 +433,7 @@ exports.setUserActive = onCall({ region: REGION }, async request => {
     if (activeAdmins.size <= 1) {
       throw new HttpsError(
         "failed-precondition",
-        "Tidak dapat menonaktifkan Admin terakhir yang masih aktif."
+        "Admin aktif terakhir tidak dapat dinonaktifkan."
       );
     }
   }
@@ -381,7 +441,9 @@ exports.setUserActive = onCall({ region: REGION }, async request => {
   const authUser = await auth.getUser(uid);
 
   try {
-    await auth.updateUser(uid, { disabled: !aktif });
+    await auth.updateUser(uid, {
+      disabled: !aktif
+    });
 
     await userRef.update({
       aktif,
@@ -398,15 +460,24 @@ exports.setUserActive = onCall({ region: REGION }, async request => {
     return { ok: true, aktif };
 
   } catch (error) {
+    // Kembalikan status Firebase Authentication.
     await auth.updateUser(uid, {
       disabled: authUser.disabled
     }).catch(() => {});
 
-    if (error instanceof HttpsError) throw error;
+    // Kembalikan status Firestore jika sudah sempat berubah.
+    await userRef.update({
+      aktif: target.aktif,
+      updatedAt: FieldValue.serverTimestamp()
+    }).catch(() => {});
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
 
     throw new HttpsError(
       "internal",
-      "Gagal mengubah status akun."
+      "Gagal mengubah status akun. Silakan periksa kembali."
     );
   }
 });
