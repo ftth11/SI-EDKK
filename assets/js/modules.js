@@ -1507,6 +1507,11 @@ async function showCase(id) {
           <dd id="caseReportedPerson">
             ${escapeHtml(d.namaTerlapor || "-")}
           </dd>
+
+          <dt>Kontak terlapor</dt>
+          <dd id="caseReportedContact">
+            ${escapeHtml(d.kontakTerlapor || "-")}
+          </dd>
           
           <dt>Jabatan/unit terlapor</dt>
           <dd id="caseReportedPosition">
@@ -1778,6 +1783,9 @@ async function showCase(id) {
 
         $("#caseReportedPerson").textContent =
           d.namaTerlapor || report.namaTerlapor || "-";
+
+        $("#caseReportedContact").textContent =
+          d.kontakTerlapor || report.kontakTerlapor || "-";
         
         $("#caseReportedPosition").textContent =
           d.jabatanTerlapor || report.jabatanTerlapor || "-";
