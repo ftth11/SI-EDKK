@@ -17,12 +17,7 @@ observeAuth(async (user,profile)=>{
   window.currentProfile=profile;
   loginView.classList.add("hidden");appView.classList.remove("hidden");
   $("#userName").textContent=profile.nama||user.email; $("#userRole").textContent=profile.role||"User";
-  const committeeRoles = [
-  "Admin",
-  "Ketua Komite",
-  "Sekretaris",
-  "Anggota Komite"
-];
+  const committeeRoles = ["Admin"];
 
 $$(".admin-only").forEach(el => {
   el.classList.toggle("hidden", profile.role !== "Admin");
