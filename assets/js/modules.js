@@ -1047,6 +1047,7 @@ function reportListPage(host, profile) {
                   >
                     Hapus
                   </button>
+                  : ""}
                 </td>
               </tr>
             `).join("") || `
