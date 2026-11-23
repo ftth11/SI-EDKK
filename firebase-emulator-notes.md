@@ -1,2 +1,3 @@
 # Firebase Emulator
-Gunakan Emulator Suite sebelum production. Tambahkan `firebase emulators:exec --only auth,firestore,functions,storage 'npm test'` setelah test suite rules/functions dibuat. Jangan menguji data nyata di emulator yang dibagikan.
+
+Gunakan Emulator Suite untuk menguji Firebase Authentication dan Firestore sebelum production. Firebase Cloud Functions dan Firebase Storage tidak digunakan oleh paket SI-ETIK ini. Operasi backend aplikasi dijalankan melalui Cloudflare Worker; uji endpoint Worker pada environment staging dengan Service Account dan KV terpisah dari production.
