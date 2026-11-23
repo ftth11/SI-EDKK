@@ -17,20 +17,14 @@ function fileToBase64(file) {
 }
 
 
-function showConfirmDialog({
-    title,
-    message,
-    confirmText = "Ya, Hapus",
-    icon = "🗑️",
-    confirmColor = "#dc2626"
-  }) {
+function showConfirmDialog({ title, message, confirmText = "Ya, Hapus" }) {
   return new Promise(resolve => {
     const backdrop = document.createElement("div");
     backdrop.className = "modal-backdrop";
     backdrop.innerHTML = `
       <section class="modal" role="dialog" aria-modal="true"
         aria-labelledby="appConfirmTitle" style="max-width:420px;text-align:center">
-        <div style="font-size:36px;margin-bottom:12px" aria-hidden="true">${escapeHtml(icon)}</div>
+        <div style="font-size:36px;margin-bottom:12px" aria-hidden="true">🗑️</div>
         <h2 id="appConfirmTitle">${escapeHtml(title)}</h2>
         <p class="muted" style="line-height:1.7;margin:12px 0 22px">
           ${escapeHtml(message)}
@@ -38,7 +32,7 @@ function showConfirmDialog({
         <div style="display:flex;gap:10px;justify-content:center">
           <button type="button" class="btn subtle" data-dialog-cancel style="flex:1">Batal</button>
           <button type="button" class="btn primary" data-dialog-confirm
-            style="flex:1;background:${escapeHtml(confirmColor)}">${escapeHtml(confirmText)}</button>
+            style="flex:1;background:#dc2626">${escapeHtml(confirmText)}</button>
         </div>
       </section>
     `;
@@ -465,46 +459,27 @@ function reportPage(host, profile) {
         </label>
 
         <div class="full evidence-input-area">
-          <label>
+          <label for="evidenceFiles">
             Foto bukti kejadian
           </label>
-        
+
           <p class="muted tiny">
             Pilih maksimal 3 foto. Foto akan dikompres otomatis
             sebelum dikirim. Format JPG, PNG, atau WebP.
           </p>
-        
-          <div class="evidence-upload-options">
-            <label for="evidenceGallery" class="btn-evidence">
-              📁 Ambil dari Galeri
-            </label>
-        
-            <label for="evidenceCamera" class="btn-evidence">
-              📷 Buka Kamera
-            </label>
-          </div>
-        
+
           <input
-            id="evidenceGallery"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            multiple
-            hidden
-          >
-        
-          <input
-            id="evidenceCamera"
+            id="evidenceFiles"
             type="file"
             accept="image/*"
-            capture="environment"
-            hidden
+            multiple
           >
-        
+
           <div
             id="evidencePreview"
             class="evidence-preview"
           ></div>
-        
+
           <p class="tiny muted" id="evidenceInfo">
             Belum ada foto dipilih.
           </p>
@@ -531,9 +506,7 @@ function reportPage(host, profile) {
   const form = $("#internalReport");
   const button = $("#submitInternalReport");
   const message = $("#formMessage");
-  const galleryInput = $("#evidenceGallery");
-  const cameraInput = $("#evidenceCamera");
-  const fileInputs = [galleryInput, cameraInput];
+  const fileInput = $("#evidenceFiles");
   const preview = $("#evidencePreview");
   const evidenceInfo = $("#evidenceInfo");
 
@@ -585,61 +558,51 @@ function reportPage(host, profile) {
       : "Belum ada foto dipilih.";
   }
 
-    async function handleEvidenceSelection(event) {
-    const input = event.currentTarget;
-  
+  fileInput.addEventListener("change", async () => {
     if (pendingReportId) {
       toast(
         "Selesaikan unggah bukti laporan sebelumnya terlebih dahulu.",
         "warning"
       );
-  
-      input.value = "";
+
+      fileInput.value = "";
       return;
     }
-  
-    const files = Array.from(input.files || []);
-  
+
+    const files = Array.from(fileInput.files || []);
+
     if (!files.length) return;
-  
+
     if (selectedPhotos.length + files.length > MAX_PHOTOS) {
       toast("Maksimal 3 foto untuk satu laporan.", "error");
-      input.value = "";
+      fileInput.value = "";
       return;
     }
-  
-    fileInputs.forEach(item => item.disabled = true);
+
+    fileInput.disabled = true;
     evidenceInfo.textContent = "Sedang memproses dan mengompres foto...";
-  
+
     try {
       for (const file of files) {
         const compressed = await compressPhoto(file);
+
         const previewUrl = URL.createObjectURL(compressed);
-  
+
         selectedPhotos.push({
           file: compressed,
           previewUrl
         });
       }
-  
+
       renderPhotoPreview();
-  
+
     } catch (error) {
       toast(error.message, "error");
-  
+
     } finally {
-      fileInputs.forEach(item => {
-        item.disabled = false;
-      });
-  
-      fileInputs.forEach(item => {
-        item.value = "";
-      });
+      fileInput.disabled = false;
+      fileInput.value = "";
     }
-  }
-  
-  fileInputs.forEach(input => {
-    input.addEventListener("change", handleEvidenceSelection);
   });
 
   preview.addEventListener("click", event => {
@@ -715,7 +678,7 @@ function reportPage(host, profile) {
     }
 
     button.disabled = true;
-    fileInputs.forEach(input => input.disabled = true);
+    fileInput.disabled = true;
 
     try {
       const token = await auth.currentUser.getIdToken(true);
@@ -805,7 +768,7 @@ function reportPage(host, profile) {
 
     } finally {
       button.disabled = false;
-      fileInputs.forEach(input => input.disabled = false);
+      fileInput.disabled = false;
     }
   });
 
@@ -1346,14 +1309,10 @@ function reportListPage(host, profile) {
 
       if (convertButton) {
         convertButton.onclick = async () => {
-          const confirmed = await showConfirmDialog({
-            title: "Konversi Laporan Menjadi Kasus?",
-            message: `Laporan ${report.nomor} akan dikonversi menjadi kasus baru dan mendapatkan nomor kasus.`,
-            confirmText: "Ya, Konversi",
-            icon: "🔄",
-            confirmColor: "#2563eb"
-          });
-          
+          const confirmed = window.confirm(
+            `Konversi ${report.nomor} menjadi kasus? Tindakan ini akan membuat nomor kasus baru.`
+          );
+
           if (!confirmed) return;
 
           convertButton.disabled = true;
@@ -1750,14 +1709,10 @@ async function showCase(id) {
       return;
     }
 
-    const confirmed = await showConfirmDialog({
-      title: "Konfirmasi Perubahan Status",
-      message: `Status kasus akan diubah menjadi "${newStatus}". Perubahan ini akan dicatat dalam riwayat penanganan.`,
-      confirmText: "Ya, Ubah",
-      icon: "📝",
-      confirmColor: "#2563eb"
-    });
-    
+    const confirmed = confirm(
+      `Ubah status kasus menjadi "${newStatus}"?`
+    );
+
     if (!confirmed) return;
 
     saveButton.disabled = true;
@@ -2179,4 +2134,3 @@ async function settings(host, profile) {
     b.disabled=true;try{await reportApi("/set-user-active",{method:"POST",body:JSON.stringify({uid:b.dataset.userActive,aktif:next})});toast("Status akun diperbarui.","success");await settings(host,profile);}catch(error){toast(error.message||"Status akun gagal diubah.","error");b.disabled=false;}
   });
 }
-
