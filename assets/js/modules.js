@@ -17,6 +17,74 @@ const API_URL = "https://si-etik-api.baits-ap97.workers.dev";
 const MAX_PHOTOS = 3;
 const MAX_PHOTO_BYTES = 1500000;
 
+
+function showConfirmDialog({
+  title,
+  message,
+  confirmText = "Ya, Hapus"
+}) {
+  return new Promise(resolve => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+
+    backdrop.innerHTML = `
+      <section class="modal" role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirmDialogTitle"
+        style="max-width:420px;text-align:center">
+
+        <div style="font-size:38px;margin-bottom:12px">🗑️</div>
+
+        <h2 id="confirmDialogTitle">
+          ${escapeHtml(title)}
+        </h2>
+
+        <p style="color:var(--muted);line-height:1.7">
+          ${escapeHtml(message)}
+        </p>
+
+        <div style="display:flex;gap:10px;margin-top:24px">
+          <button class="btn subtle" data-cancel
+            style="flex:1">
+            Batal
+          </button>
+
+          <button class="btn primary" data-confirm
+            style="flex:1;background:#dc2626">
+            ${escapeHtml(confirmText)}
+          </button>
+        </div>
+      </section>
+    `;
+
+    document.body.appendChild(backdrop);
+
+    const close = value => {
+      backdrop.remove();
+      document.removeEventListener("keydown", onKey);
+      resolve(value);
+    };
+
+    const onKey = event => {
+      if (event.key === "Escape") close(false);
+    };
+
+    backdrop.querySelector("[data-cancel]")
+      .addEventListener("click", () => close(false));
+
+    backdrop.querySelector("[data-confirm]")
+      .addEventListener("click", () => close(true));
+
+    backdrop.addEventListener("click", event => {
+      if (event.target === backdrop) close(false);
+    });
+
+    document.addEventListener("keydown", onKey);
+
+    backdrop.querySelector("[data-cancel]").focus();
+  });
+}
+
 const pageTitles = {
   dashboard: "Dashboard",
   pelaporan: "Pelaporan Kasus",
@@ -1046,11 +1114,11 @@ function reportListPage(host, profile) {
       button.addEventListener("click", async () => {
         const reportId = button.dataset.reportDelete;
     
-        const confirmed = window.confirm(
-          "Apakah Anda yakin ingin menghapus laporan ini?\n\n" +
-          "Laporan tidak akan tampil lagi dalam daftar aktif. " +
-          "Riwayat audit tetap tersimpan."
-        );
+        const confirmed = await showConfirmDialog({
+          title: "Hapus Laporan?",
+          message: "Laporan tidak akan tampil lagi dalam daftar aktif. Riwayat audit tetap tersimpan.",
+          confirmText: "Ya, Hapus"
+        });
     
         if (!confirmed) return;
     
@@ -1063,13 +1131,14 @@ function reportListPage(host, profile) {
             body: JSON.stringify({ reportId })
           });
     
-          alert("Laporan berhasil dihapus.");
+          toast("Laporan berhasil dihapus.", "success");
     
           await loadReports();
     
         } catch (error) {
-          alert(
-            error.message || "Laporan gagal dihapus."
+          toast(
+            error.message || "Laporan gagal dihapus.",
+            "error"
           );
     
           button.disabled = false;
@@ -1077,7 +1146,6 @@ function reportListPage(host, profile) {
         }
       });
     });
-  }
 
   async function loadReports() {
     tableContainer.innerHTML = `
