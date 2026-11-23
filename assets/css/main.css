@@ -153,6 +153,51 @@
 }
 
 
+/* Pilihan sumber foto bukti SI-ETIK */
+.evidence-upload-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.btn-evidence {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 12px;
+  border: 1px solid #0d6575;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #0d6575;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.btn-evidence:hover {
+  background: #eaf5f6;
+}
+
+.btn-evidence:active {
+  background: #d9edef;
+}
+
+.evidence-upload-options input[type="file"] {
+  display: none;
+}
+
+@media (max-width: 420px) {
+  .evidence-upload-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+
 .evidence-remove:disabled {
   opacity: 0.45;
   cursor: not-allowed;
