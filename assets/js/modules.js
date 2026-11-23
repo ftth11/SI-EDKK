@@ -465,27 +465,46 @@ function reportPage(host, profile) {
         </label>
 
         <div class="full evidence-input-area">
-          <label for="evidenceFiles">
+          <label>
             Foto bukti kejadian
           </label>
-
+        
           <p class="muted tiny">
             Pilih maksimal 3 foto. Foto akan dikompres otomatis
             sebelum dikirim. Format JPG, PNG, atau WebP.
           </p>
-
+        
+          <div class="evidence-upload-options">
+            <label for="evidenceGallery" class="btn-evidence">
+              📁 Ambil dari Galeri
+            </label>
+        
+            <label for="evidenceCamera" class="btn-evidence">
+              📷 Buka Kamera
+            </label>
+          </div>
+        
           <input
-            id="evidenceFiles"
+            id="evidenceGallery"
             type="file"
             accept="image/jpeg,image/png,image/webp"
             multiple
+            hidden
           >
-
+        
+          <input
+            id="evidenceCamera"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+          >
+        
           <div
             id="evidencePreview"
             class="evidence-preview"
           ></div>
-
+        
           <p class="tiny muted" id="evidenceInfo">
             Belum ada foto dipilih.
           </p>
@@ -512,7 +531,9 @@ function reportPage(host, profile) {
   const form = $("#internalReport");
   const button = $("#submitInternalReport");
   const message = $("#formMessage");
-  const fileInput = $("#evidenceFiles");
+  const galleryInput = $("#evidenceGallery");
+  const cameraInput = $("#evidenceCamera");
+  const fileInputs = [galleryInput, cameraInput];
   const preview = $("#evidencePreview");
   const evidenceInfo = $("#evidenceInfo");
 
@@ -564,51 +585,61 @@ function reportPage(host, profile) {
       : "Belum ada foto dipilih.";
   }
 
-  fileInput.addEventListener("change", async () => {
+    async function handleEvidenceSelection(event) {
+    const input = event.currentTarget;
+  
     if (pendingReportId) {
       toast(
         "Selesaikan unggah bukti laporan sebelumnya terlebih dahulu.",
         "warning"
       );
-
-      fileInput.value = "";
+  
+      input.value = "";
       return;
     }
-
-    const files = Array.from(fileInput.files || []);
-
+  
+    const files = Array.from(input.files || []);
+  
     if (!files.length) return;
-
+  
     if (selectedPhotos.length + files.length > MAX_PHOTOS) {
       toast("Maksimal 3 foto untuk satu laporan.", "error");
-      fileInput.value = "";
+      input.value = "";
       return;
     }
-
-    fileInput.disabled = true;
+  
+    fileInputs.forEach(item => item.disabled = true);
     evidenceInfo.textContent = "Sedang memproses dan mengompres foto...";
-
+  
     try {
       for (const file of files) {
         const compressed = await compressPhoto(file);
-
         const previewUrl = URL.createObjectURL(compressed);
-
+  
         selectedPhotos.push({
           file: compressed,
           previewUrl
         });
       }
-
+  
       renderPhotoPreview();
-
+  
     } catch (error) {
       toast(error.message, "error");
-
+  
     } finally {
-      fileInput.disabled = false;
-      fileInput.value = "";
+      fileInputs.forEach(item => {
+        item.disabled = false;
+      });
+  
+      fileInputs.forEach(item => {
+        item.value = "";
+      });
     }
+  }
+  
+  fileInputs.forEach(input => {
+    input.addEventListener("change", handleEvidenceSelection);
   });
 
   preview.addEventListener("click", event => {
@@ -684,7 +715,7 @@ function reportPage(host, profile) {
     }
 
     button.disabled = true;
-    fileInput.disabled = true;
+    fileInputs.forEach(input => input.disabled = true);
 
     try {
       const token = await auth.currentUser.getIdToken(true);
@@ -774,7 +805,7 @@ function reportPage(host, profile) {
 
     } finally {
       button.disabled = false;
-      fileInput.disabled = false;
+      fileInputs.forEach(input => input.disabled = false);
     }
   });
 
