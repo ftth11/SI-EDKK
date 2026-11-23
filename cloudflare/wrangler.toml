@@ -1,0 +1,10 @@
+name = "si-etik-api"
+main = "worker.js"
+compatibility_date = "2026-11-23"
+
+[[kv_namespaces]]
+binding = "BUKTI_KV"
+id = "ISI_DENGAN_ID_NAMESPACE_SI-ETIK-BUKTI"
+
+[vars]
+FIREBASE_PROJECT_ID = "si-edkk"

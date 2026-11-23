@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "si-etik-shell-v5";
+const CACHE_NAME = "si-etik-shell-v6";
 
 const SHELL = [
   "./",
