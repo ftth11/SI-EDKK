@@ -1309,10 +1309,12 @@ function reportListPage(host, profile) {
 
       if (convertButton) {
         convertButton.onclick = async () => {
-          const confirmed = window.confirm(
-            `Konversi ${report.nomor} menjadi kasus? Tindakan ini akan membuat nomor kasus baru.`
-          );
-
+          const confirmed = await showConfirmDialog({
+            title: "Konversi Laporan Menjadi Kasus?",
+            message: `Laporan ${report.nomor} akan dikonversi menjadi kasus baru dan mendapatkan nomor kasus.`,
+            confirmText: "Ya, Konversi"
+          });
+          
           if (!confirmed) return;
 
           convertButton.disabled = true;
@@ -1709,10 +1711,12 @@ async function showCase(id) {
       return;
     }
 
-    const confirmed = confirm(
-      `Ubah status kasus menjadi "${newStatus}"?`
-    );
-
+    const confirmed = await showConfirmDialog({
+      title: "Konfirmasi Perubahan Status",
+      message: `Status kasus akan diubah menjadi "${newStatus}". Perubahan ini akan dicatat dalam riwayat penanganan.`,
+      confirmText: "Ya, Ubah"
+    });
+    
     if (!confirmed) return;
 
     saveButton.disabled = true;
