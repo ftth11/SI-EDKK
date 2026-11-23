@@ -1,15 +1,4 @@
-import { auth, db, functions } from "./firebase.js";
-import { httpsCallable } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-functions.js";
-import {
-  collection,
-  getDocs,
-  query,
-  orderBy,
-  limit,
-  doc,
-  getDoc,
-  where
-} from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+import { auth, db } from "./firebase.js";
 
 import { $, escapeHtml, dateLabel, toast } from "./ui.js";
 
@@ -17,13 +6,6 @@ const API_URL = "https://si-etik-api.baits-ap97.workers.dev";
 
 const MAX_PHOTOS = 3;
 const MAX_PHOTO_BYTES = 1500000;
-
-async function callAdminFunction(name, data = {}) {
-  if (!functions) throw new Error("Firebase Functions belum dikonfigurasi.");
-  const callable = httpsCallable(functions, name);
-  const result = await callable(data);
-  return result.data || {};
-}
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -175,14 +157,6 @@ export async function renderPage(page, profile) {
   }
 }
 
-async function count(col) {
-  const s = await getDocs(
-    query(collection(db, col), limit(500))
-  );
-
-  return s.size;
-}
-
 // =====================================================
 // DASHBOARD
 // =====================================================
@@ -196,17 +170,15 @@ async function dashboard(host, profile) {
 
   if (isAdmin) {
     const values = await Promise.allSettled([
-      count("cases"),
-      count("documents"),
-      count("programs"),
+      reportApi("/admin-counts"),
       reportApi("/reports?pageSize=50")
     ]);
-    cases = values[0].status === "fulfilled" ? values[0].value : "—";
-    docs = values[1].status === "fulfilled" ? values[1].value : "—";
-    programs = values[2].status === "fulfilled" ? values[2].value : "—";
-    reports = values[3].status === "fulfilled"
-      ? (values[3].value.reports || []).length
-      : "—";
+    if (values[0].status === "fulfilled") {
+      cases = values[0].value.cases;
+      docs = values[0].value.documents;
+      programs = values[0].value.programs;
+    }
+    reports = values[1].status === "fulfilled" ? (values[1].value.reports || []).length : "—";
   } else {
     // User hanya mengambil daftar laporan miliknya melalui Worker.
     const result = await reportApi("/reports?pageSize=50");
@@ -822,28 +794,10 @@ function normalizeRole(role) {
 }
 
 async function getActiveRole() {
-  const currentUser = auth.currentUser;
-
-  if (!currentUser) {
-    return null;
-  }
-
+  if (!auth?.currentUser) return null;
   try {
-    const userSnap = await getDoc(
-      doc(db, "users", currentUser.uid)
-    );
-
-    if (!userSnap.exists()) {
-      return null;
-    }
-
-    const userData = userSnap.data();
-
-    if (userData.aktif !== true) {
-      return null;
-    }
-
-    return normalizeRole(userData.role);
+    const result = await reportApi("/auth-check", { method: "POST", body: "{}" });
+    return result.active === true ? normalizeRole(result.role) : null;
   } catch (error) {
     console.error("Gagal memeriksa role akun:", error);
     return null;
@@ -1425,18 +1379,8 @@ async function caseList(host, database = false) {
     return;
   }
   
-  const snap = await getDocs(
-    query(
-      collection(db, "cases"),
-      orderBy("createdAt", "desc"),
-      limit(100)
-    )
-  );
-
-  const rows = snap.docs.map(d => ({
-    id: d.id,
-    ...d.data()
-  }));
+  const caseResult = await reportApi("/cases");
+  const rows = caseResult.cases || [];
 
   host.innerHTML = `
     <div class="page-intro">
@@ -1520,14 +1464,9 @@ async function showCase(id) {
     return;
   }
 
-  const s = await getDoc(doc(db, "cases", id));
-
-  if (!s.exists()) {
-    toast("Data kasus tidak ditemukan.", "error");
-    return;
-  }
-
-  let d = s.data();
+  const caseResult = await reportApi(`/case?id=${encodeURIComponent(id)}`);
+  if (!caseResult.case) { toast("Data kasus tidak ditemukan.", "error"); return; }
+  let d = caseResult.case;
 
   const canViewReport = true;
 
@@ -1790,13 +1729,9 @@ async function showCase(id) {
       });
 
       // Ambil kembali data terbaru dari Firestore.
-      const updatedSnap = await getDoc(doc(db, "cases", id));
-
-      if (!updatedSnap.exists()) {
-        throw new Error("Data kasus tidak ditemukan setelah diperbarui.");
-      }
-
-      d = updatedSnap.data();
+      const updatedResult = await reportApi(`/case?id=${encodeURIComponent(id)}`);
+      if (!updatedResult.case) throw new Error("Data kasus tidak ditemukan setelah diperbarui.");
+      d = updatedResult.case;
 
       $("#caseCurrentStatus").textContent =
         d.status || "-";
@@ -1828,17 +1763,8 @@ async function showCase(id) {
   try {
     // Cari laporan asal untuk kasus lama.
     if (!reportId && canViewReport) {
-      const reportSnap = await getDocs(
-        query(
-          collection(db, "reports"),
-          where("caseId", "==", id),
-          limit(1)
-        )
-      );
-
-      if (!reportSnap.empty) {
-        reportId = reportSnap.docs[0].id;
-      }
+      const related = await reportApi(`/report-by-case?caseId=${encodeURIComponent(id)}`);
+      reportId = related.reportId || "";
     }
 
     // Ambil data laporan asal melalui backend.
@@ -2004,8 +1930,8 @@ async function documents(host) {
     host.innerHTML = `<div class="notice warning">Anda tidak memiliki hak akses untuk mengelola dokumen internal.</div>`;
     return;
   }
-  const snap = await getDocs(query(collection(db, "documents"), orderBy("updatedAt", "desc"), limit(100)));
-  const items = snap.docs.map(x => ({ id: x.id, ...x.data() }));
+  const documentResult = await reportApi("/documents");
+  const items = documentResult.documents || [];
   host.innerHTML = `
     <div class="page-intro"><div><h1>Dokumen & Akreditasi</h1><p class="muted">Unggah dan kelola dokumen komite. File disimpan privat; maksimal 4 MB.</p></div></div>
     <section class="panel" style="margin-bottom:18px">
@@ -2034,7 +1960,7 @@ async function documents(host) {
     const submit = form.querySelector("button[type=submit]");
     submit.disabled = true; submit.textContent = "Mengunggah...";
     try {
-      await callAdminFunction("uploadManagedDocument", {
+      await reportApi("/documents", { method: "POST", body: JSON.stringify({ action: "upload",
         nama: form.elements.nama.value,
         kategori: form.elements.kategori.value,
         nomor: form.elements.nomor.value,
@@ -2042,7 +1968,7 @@ async function documents(host) {
         fileName: file.name,
         contentType: file.type || "application/octet-stream",
         base64: await fileToBase64(file)
-      });
+      }) });
       toast("Dokumen berhasil diunggah.", "success");
       await documents(host);
     } catch (error) {
@@ -2053,7 +1979,7 @@ async function documents(host) {
   host.querySelectorAll("[data-doc-download]").forEach(button => button.addEventListener("click", async () => {
     button.disabled = true; button.textContent = "Menyiapkan...";
     try {
-      const data = await callAdminFunction("downloadManagedDocument", { id: button.dataset.docDownload });
+      const data = await reportApi("/documents", { method: "POST", body: JSON.stringify({ action: "download", id: button.dataset.docDownload }) });
       const binary = atob(data.base64); const bytes = new Uint8Array(binary.length);
       for (let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
       const url = URL.createObjectURL(new Blob([bytes], { type: data.contentType }));
@@ -2065,7 +1991,7 @@ async function documents(host) {
   host.querySelectorAll("[data-doc-delete]").forEach(button => button.addEventListener("click", async () => {
     if (!await showConfirmDialog({ title: "Hapus dokumen?", message: "File dan data dokumen ini akan dihapus." })) return;
     button.disabled = true;
-    try { await callAdminFunction("deleteManagedDocument", { id: button.dataset.docDelete }); toast("Dokumen dihapus.", "success"); await documents(host); }
+    try { await reportApi("/documents", { method: "POST", body: JSON.stringify({ action: "delete", id: button.dataset.docDelete }) }); toast("Dokumen dihapus.", "success"); await documents(host); }
     catch (error) { toast(error.message || "Dokumen gagal dihapus.", "error"); button.disabled = false; }
   }));
 }
@@ -2076,12 +2002,9 @@ async function documents(host) {
 
 async function monitoring(host) {
   if (await getActiveRole() !== "Admin") { host.innerHTML = `<div class="notice warning">Akses hanya untuk Admin.</div>`; return; }
-  const [caseSnap, evalSnap] = await Promise.all([
-    getDocs(query(collection(db, "cases"), orderBy("createdAt", "desc"), limit(500))),
-    getDocs(query(collection(db, "evaluations"), orderBy("createdAt", "desc"), limit(100)))
-  ]);
-  const cases = caseSnap.docs.map(x=>({id:x.id,...x.data()}));
-  const evaluations = evalSnap.docs.map(x=>({id:x.id,...x.data()}));
+  const [caseResult, evalResult] = await Promise.all([reportApi("/cases"), reportApi("/evaluations")]);
+  const cases = caseResult.cases || [];
+  const evaluations = evalResult.evaluations || [];
   const statuses = ["Dalam Telaah","Pemeriksaan","Menunggu Klarifikasi","Rekomendasi","Selesai","Ditutup"];
   host.innerHTML = `
     <div class="page-intro"><div><h1>Monitoring & Evaluasi</h1><p class="muted">Ringkasan status dari maksimal 500 kasus terbaru dan pencatatan evaluasi berkala.</p></div><button class="btn subtle" id="monitorRefresh">Muat ulang</button></div>
@@ -2105,7 +2028,7 @@ async function monitoring(host) {
   $("#monitorRefresh",host).onclick=()=>monitoring(host);
   $("#evaluationForm",host).addEventListener("submit",async e=>{
     e.preventDefault(); const f=e.currentTarget; const b=f.querySelector("button[type=submit]"); b.disabled=true;
-    try { await callAdminFunction("saveManagedEvaluation", {id:f.dataset.editId || "",judul:f.elements.judul.value,periode:f.elements.periode.value,indikator:f.elements.indikator.value,target:f.elements.target.value,capaian:f.elements.capaian.value,catatan:f.elements.catatan.value}); toast(f.dataset.editId ? "Evaluasi diperbarui." : "Evaluasi berhasil disimpan.","success"); await monitoring(host); }
+    try { await reportApi("/evaluations", { method: "POST", body: JSON.stringify({id:f.dataset.editId || "",judul:f.elements.judul.value,periode:f.elements.periode.value,indikator:f.elements.indikator.value,target:f.elements.target.value,capaian:f.elements.capaian.value,catatan:f.elements.catatan.value}) }); toast(f.dataset.editId ? "Evaluasi diperbarui." : "Evaluasi berhasil disimpan.","success"); await monitoring(host); }
     catch(error){toast(error.message||"Evaluasi gagal disimpan.","error");b.disabled=false;}
   });
   host.querySelectorAll("[data-eval-edit]").forEach(b=>b.onclick=()=>{
@@ -2123,7 +2046,7 @@ async function monitoring(host) {
   });
   host.querySelectorAll("[data-eval-delete]").forEach(b=>b.onclick=async()=>{
     if(!await showConfirmDialog({title:"Hapus evaluasi?",message:"Catatan evaluasi ini akan dihapus."}))return;
-    b.disabled=true; try{await callAdminFunction("deleteManagedEvaluation",{id:b.dataset.evalDelete});toast("Evaluasi dihapus.","success");await monitoring(host);}catch(error){toast(error.message||"Gagal menghapus evaluasi.","error");b.disabled=false;}
+    b.disabled=true; try{await reportApi("/evaluations",{method:"POST",body:JSON.stringify({action:"delete",id:b.dataset.evalDelete})});toast("Evaluasi dihapus.","success");await monitoring(host);}catch(error){toast(error.message||"Gagal menghapus evaluasi.","error");b.disabled=false;}
   });
 }
 
@@ -2133,8 +2056,8 @@ async function monitoring(host) {
 
 async function programs(host) {
   if (await getActiveRole() !== "Admin") { host.innerHTML = `<div class="notice warning">Akses hanya untuk Admin.</div>`; return; }
-  const snap = await getDocs(query(collection(db,"programs"),orderBy("createdAt","desc"),limit(100)));
-  const items = snap.docs.map(x=>({id:x.id,...x.data()}));
+  const programResult = await reportApi("/programs");
+  const items = programResult.programs || [];
   host.innerHTML = `
     <div class="page-intro"><div><h1>Program & Kegiatan</h1><p class="muted">Kelola program kerja, rapat, sosialisasi, dan kegiatan komite.</p></div></div>
     <section class="panel" style="margin-bottom:18px"><h3>Tambah program/kegiatan</h3>
@@ -2157,7 +2080,7 @@ async function programs(host) {
   const form=$("#programForm",host);
   form.addEventListener("submit",async e=>{
     e.preventDefault();const f=e.currentTarget;const b=f.querySelector("button[type=submit]");b.disabled=true;
-    try{await callAdminFunction("saveManagedProgram",{nama:f.elements.nama.value,periode:f.elements.periode.value,pic:f.elements.pic.value,status:f.elements.status.value,tanggalMulai:f.elements.tanggalMulai.value,tanggalSelesai:f.elements.tanggalSelesai.value,deskripsi:f.elements.deskripsi.value});toast("Program berhasil disimpan.","success");await programs(host);}
+    try{await reportApi("/programs",{method:"POST",body:JSON.stringify({nama:f.elements.nama.value,periode:f.elements.periode.value,pic:f.elements.pic.value,status:f.elements.status.value,tanggalMulai:f.elements.tanggalMulai.value,tanggalSelesai:f.elements.tanggalSelesai.value,deskripsi:f.elements.deskripsi.value})});toast("Program berhasil disimpan.","success");await programs(host);}
     catch(error){toast(error.message||"Program gagal disimpan.","error");b.disabled=false;}
   });
   host.querySelectorAll("[data-program-edit]").forEach(b=>b.onclick=async()=>{
@@ -2169,12 +2092,12 @@ async function programs(host) {
   form.addEventListener("submit",async e=>{
     if(!form.dataset.editId)return;
     e.preventDefault();e.stopImmediatePropagation();const b=form.querySelector("button[type=submit]");b.disabled=true;
-    try{await callAdminFunction("saveManagedProgram",{id:form.dataset.editId,nama:form.elements.nama.value,periode:form.elements.periode.value,pic:form.elements.pic.value,status:form.elements.status.value,tanggalMulai:form.elements.tanggalMulai.value,tanggalSelesai:form.elements.tanggalSelesai.value,deskripsi:form.elements.deskripsi.value});toast("Program diperbarui.","success");await programs(host);}
+    try{await reportApi("/programs",{method:"POST",body:JSON.stringify({id:form.dataset.editId,nama:form.elements.nama.value,periode:form.elements.periode.value,pic:form.elements.pic.value,status:form.elements.status.value,tanggalMulai:form.elements.tanggalMulai.value,tanggalSelesai:form.elements.tanggalSelesai.value,deskripsi:form.elements.deskripsi.value})});toast("Program diperbarui.","success");await programs(host);}
     catch(error){toast(error.message||"Program gagal diperbarui.","error");b.disabled=false;}
   },true);
   host.querySelectorAll("[data-program-delete]").forEach(b=>b.onclick=async()=>{
     if(!await showConfirmDialog({title:"Hapus program?",message:"Data program/kegiatan ini akan dihapus."}))return;
-    b.disabled=true;try{await callAdminFunction("deleteManagedProgram",{id:b.dataset.programDelete});toast("Program dihapus.","success");await programs(host);}catch(error){toast(error.message||"Program gagal dihapus.","error");b.disabled=false;}
+    b.disabled=true;try{await reportApi("/programs",{method:"POST",body:JSON.stringify({action:"delete",id:b.dataset.programDelete})});toast("Program dihapus.","success");await programs(host);}catch(error){toast(error.message||"Program gagal dihapus.","error");b.disabled=false;}
   });
 }
 
@@ -2185,7 +2108,7 @@ async function programs(host) {
 async function settings(host, profile) {
   if (await getActiveRole() !== "Admin") { host.innerHTML = `<div class="notice warning">Akses hanya untuk Admin.</div>`; return; }
   let result;
-  try { result = await callAdminFunction("listManagedUsers"); }
+  try { result = await reportApi("/managed-users"); }
   catch(error) { host.innerHTML = `<div class="notice warning">Daftar akun gagal dimuat: ${escapeHtml(error.message)}</div>`; return; }
   const users = result.users || [];
   host.innerHTML = `
@@ -2197,18 +2120,18 @@ async function settings(host, profile) {
     </tbody></table></div></section>`;
   $("#createUserForm",host).addEventListener("submit",async e=>{
     e.preventDefault();const f=e.currentTarget;const b=f.querySelector("button[type=submit]");b.disabled=true;b.textContent="Membuat akun...";
-    try{await callAdminFunction("createManagedUser",{nama:f.elements.nama.value,email:f.elements.email.value,password:f.elements.password.value,role:f.elements.role.value});toast("Akun berhasil dibuat.","success");await settings(host,profile);}
+    try{await reportApi("/create-user",{method:"POST",body:JSON.stringify({nama:f.elements.nama.value,email:f.elements.email.value,password:f.elements.password.value,role:f.elements.role.value})});toast("Akun berhasil dibuat.","success");await settings(host,profile);}
     catch(error){toast(error.message||"Akun gagal dibuat.","error");b.disabled=false;b.textContent="Buat akun";}
   });
   host.querySelectorAll("[data-user-role]").forEach(b=>b.onclick=async()=>{
     const next=b.dataset.role==="Admin"?"User":"Admin";
     if(!await showConfirmDialog({title:"Ubah role akun?",message:`Role akun akan diubah menjadi ${next}.`,confirmText:"Ya, Ubah"}))return;
-    b.disabled=true;try{await callAdminFunction("setUserRole",{uid:b.dataset.userRole,role:next});toast("Role akun diperbarui.","success");await settings(host,profile);}catch(error){toast(error.message||"Role gagal diubah.","error");b.disabled=false;}
+    b.disabled=true;try{await reportApi("/set-user-role",{method:"POST",body:JSON.stringify({uid:b.dataset.userRole,role:next})});toast("Role akun diperbarui.","success");await settings(host,profile);}catch(error){toast(error.message||"Role gagal diubah.","error");b.disabled=false;}
   });
   host.querySelectorAll("[data-user-active]").forEach(b=>b.onclick=async()=>{
     const next=b.dataset.active!=="1";
     if(!await showConfirmDialog({title:next?"Aktifkan akun?":"Nonaktifkan akun?",message:next?"Pengguna dapat login kembali.":"Pengguna tidak dapat login selama akun nonaktif.",confirmText:next?"Ya, Aktifkan":"Ya, Nonaktifkan"}))return;
-    b.disabled=true;try{await callAdminFunction("setUserActive",{uid:b.dataset.userActive,aktif:next});toast("Status akun diperbarui.","success");await settings(host,profile);}catch(error){toast(error.message||"Status akun gagal diubah.","error");b.disabled=false;}
+    b.disabled=true;try{await reportApi("/set-user-active",{method:"POST",body:JSON.stringify({uid:b.dataset.userActive,aktif:next})});toast("Status akun diperbarui.","success");await settings(host,profile);}catch(error){toast(error.message||"Status akun gagal diubah.","error");b.disabled=false;}
   });
 }
 
