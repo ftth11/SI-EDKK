@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // SI-ETIK menyimpan bukti laporan di Cloudflare KV melalui Worker.
+    // Firebase Storage ditutup sampai workflow dokumen resmi diimplementasikan.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
