@@ -17,14 +17,20 @@ function fileToBase64(file) {
 }
 
 
-function showConfirmDialog({ title, message, confirmText = "Ya, Hapus" }) {
+function showConfirmDialog({
+    title,
+    message,
+    confirmText = "Ya, Hapus",
+    icon = "🗑️",
+    confirmColor = "#dc2626"
+  }) {
   return new Promise(resolve => {
     const backdrop = document.createElement("div");
     backdrop.className = "modal-backdrop";
     backdrop.innerHTML = `
       <section class="modal" role="dialog" aria-modal="true"
         aria-labelledby="appConfirmTitle" style="max-width:420px;text-align:center">
-        <div style="font-size:36px;margin-bottom:12px" aria-hidden="true">🗑️</div>
+        <div style="font-size:36px;margin-bottom:12px" aria-hidden="true">${escapeHtml(icon)}</div>
         <h2 id="appConfirmTitle">${escapeHtml(title)}</h2>
         <p class="muted" style="line-height:1.7;margin:12px 0 22px">
           ${escapeHtml(message)}
@@ -32,7 +38,7 @@ function showConfirmDialog({ title, message, confirmText = "Ya, Hapus" }) {
         <div style="display:flex;gap:10px;justify-content:center">
           <button type="button" class="btn subtle" data-dialog-cancel style="flex:1">Batal</button>
           <button type="button" class="btn primary" data-dialog-confirm
-            style="flex:1;background:#dc2626">${escapeHtml(confirmText)}</button>
+            style="flex:1;background:${escapeHtml(confirmColor)}">${escapeHtml(confirmText)}</button>
         </div>
       </section>
     `;
@@ -1312,7 +1318,9 @@ function reportListPage(host, profile) {
           const confirmed = await showConfirmDialog({
             title: "Konversi Laporan Menjadi Kasus?",
             message: `Laporan ${report.nomor} akan dikonversi menjadi kasus baru dan mendapatkan nomor kasus.`,
-            confirmText: "Ya, Konversi"
+            confirmText: "Ya, Konversi",
+            icon: "🔄",
+            confirmColor: "#2563eb"
           });
           
           if (!confirmed) return;
@@ -1714,7 +1722,9 @@ async function showCase(id) {
     const confirmed = await showConfirmDialog({
       title: "Konfirmasi Perubahan Status",
       message: `Status kasus akan diubah menjadi "${newStatus}". Perubahan ini akan dicatat dalam riwayat penanganan.`,
-      confirmText: "Ya, Ubah"
+      confirmText: "Ya, Ubah",
+      icon: "📝",
+      confirmColor: "#2563eb"
     });
     
     if (!confirmed) return;
