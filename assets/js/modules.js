@@ -646,6 +646,32 @@ function reportPage(host, profile) {
   form.addEventListener("submit", async event => {
     event.preventDefault();
 
+        const requiredFields = [
+      { name: "jenis", label: "Jenis laporan" },
+      { name: "unit", label: "Unit/lokasi" },
+      { name: "tanggalKejadian", label: "Tanggal kejadian" },
+      { name: "namaPelapor", label: "Nama pelapor" },
+      { name: "uraian", label: "Uraian kejadian" }
+    ];
+
+    const missingFields = requiredFields.filter(field => {
+      const input = form.elements[field.name];
+      return !input || !input.value.trim();
+    });
+
+    if (missingFields.length > 0) {
+      alert(
+        "Laporan belum dapat dikirim.\\n\\n" +
+        "Mohon lengkapi kolom wajib berikut:\\n- " +
+        missingFields.map(field => field.label).join("\\n- ")
+      );
+
+      missingFields.length &&
+        form.elements[missingFields[0].name].focus();
+
+      return;
+    }
+
     if (!auth?.currentUser) {
       message.textContent =
         "Sesi login berakhir. Silakan login kembali.";
@@ -1183,15 +1209,8 @@ function reportListPage(host, profile) {
             <dt>Nama pelapor</dt>
             <dd>${escapeHtml(report.namaPelapor || "-")}</dd>
 
-            
-            <dt>Kontak pelapor</dt>
-            <dd>${escapeHtml(report.kontakPelapor || "-")}</dd>
-
             <dt>Nama terlapor</dt>
             <dd>${escapeHtml(report.namaTerlapor || "-")}</dd>
-
-            <dt>Kontak terlapor</dt>
-            <dd>${escapeHtml(report.kontakTerlapor || "-")}</dd>
 
             <dt>Jabatan/unit terlapor</dt>
             <dd>${escapeHtml(report.jabatanTerlapor || "-")}</dd>
@@ -1500,19 +1519,9 @@ async function showCase(id) {
             ${escapeHtml(d.namaPelapor || "-")}
           </dd>
 
-          <dt>Kontak pelapor</dt>
-          <dd id="caseReporterContact">
-            ${escapeHtml(d.kontakPelapor || "-")}
-          </dd>
-
           <dt>Nama terlapor</dt>
           <dd id="caseReportedPerson">
             ${escapeHtml(d.namaTerlapor || "-")}
-          </dd>
-
-          <dt>Kontak terlapor</dt>
-          <dd id="caseReportedContact">
-            ${escapeHtml(d.kontakTerlapor || "-")}
           </dd>
           
           <dt>Jabatan/unit terlapor</dt>
