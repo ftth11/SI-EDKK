@@ -365,7 +365,7 @@ function reportPage(host, profile) {
       <form id="internalReport" class="form-grid">
 
         <label class="required-field">
-          Jenis laporan
+          Jenis laporan <span class="required-star">*</span>
           <select name="jenis" required>
             <option value="Etik">Etik</option>
             <option value="Disiplin">Disiplin</option>
@@ -376,7 +376,7 @@ function reportPage(host, profile) {
         </label>
 
         <label class="required-field">
-          Unit/lokasi
+          Unit/lokasi <span class="required-star">*</span>
           <select name="unit" required>
             <option value="">Pilih unit/lokasi</option>
             ${unitOptions}
@@ -384,7 +384,7 @@ function reportPage(host, profile) {
         </label>
 
         <label class="required-field">
-          Tanggal kejadian
+          Tanggal kejadian <span class="required-star">*</span>
           <input
             name="tanggalKejadian"
             type="date"
@@ -393,7 +393,7 @@ function reportPage(host, profile) {
         </label>
 
         <label class="required-field">
-          Nama pelapor
+          Nama pelapor <span class="required-star">*</span>
           <input
             name="namaPelapor"
             value="${escapeHtml(profile?.nama || "")}"
@@ -406,43 +406,42 @@ function reportPage(host, profile) {
           <h3>Identitas pihak yang dilaporkan</h3>
           <p class="muted tiny">
             Isi identitas pihak yang dilaporkan jika diketahui.
-            Semua kolom berikut bersifat opsional.
           </p>
         </div>
 
         <label class="required-field">
-          Nama terlapor
+          Nama terlapor <span class="required-star">*</span>
           <input
             name="namaTerlapor"
             maxlength="120"
-            placeholder="Masukkan nama pihak yang dilaporkan (opsional)"
+            placeholder="Masukkan nama pihak yang dilaporkan"
           >
         </label>
 
         <label class="required-field">
-          Jabatan/unit terlapor
+          Jabatan/unit terlapor <span class="required-star">*</span>
           <input
             name="jabatanTerlapor"
             maxlength="160"
-            placeholder="Masukkan jabatan atau unit kerja (opsional)"
+            placeholder="Masukkan jabatan atau unit kerja"
           >
         </label>
 
         <label class="full required-field">
-          Uraian kejadian
+          Uraian kejadian <span class="required-star">*</span>
           <textarea
             name="uraian"
             required
             minlength="20"
             maxlength="6000"
             rows="5"
-            placeholder="Jelaskan kronologi kejadian secara objektif dan lengkap..."
+            placeholder="Jelaskan kronologi kejadian secara objektif dan lengkap"
           ></textarea>
         </label>
 
         <div class="full evidence-input-area">
           <label for="evidenceFiles">
-            Foto bukti kejadian
+            Foto bukti kejadian <span class="required-star">*</span>
           </label>
 
           <p class="muted tiny">
