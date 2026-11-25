@@ -59,9 +59,15 @@ if (!form) {
   }
 
   function readSelectedFiles() {
-    const input =
-      getField("publicEvidenceFiles", "evidence", "fotoBukti", "foto", "photos", "bukti");
-    if (!input) return [];
+    const input = document.getElementById("publicEvidenceFiles");
+  
+    if (!input) {
+      console.error("Input foto publicEvidenceFiles tidak ditemukan.");
+      return [];
+    }
+  
+    console.log("Jumlah foto dipilih:", input.files.length);
+  
     return Array.from(input.files || []);
   }
 
