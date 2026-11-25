@@ -365,7 +365,7 @@ function reportPage(host, profile) {
       <form id="internalReport" class="form-grid">
 
         <label class="required-field">
-          Jenis laporan <span class="required-star">*</span>
+          <span>Jenis laporan <span class="required-star">*</span></span>
           <select name="jenis" required>
             <option value="Etik">Etik</option>
             <option value="Disiplin">Disiplin</option>
@@ -376,7 +376,7 @@ function reportPage(host, profile) {
         </label>
 
         <label class="required-field">
-          Unit/lokasi <span class="required-star">*</span>
+          <span>Unit/lokasi <span class="required-star">*</span></span>
           <select name="unit" required>
             <option value="">Pilih unit/lokasi</option>
             ${unitOptions}
@@ -384,7 +384,7 @@ function reportPage(host, profile) {
         </label>
 
         <label class="required-field">
-          Tanggal kejadian <span class="required-star">*</span>
+          <span>Tanggal kejadian <span class="required-star">*</span></span>
           <input
             name="tanggalKejadian"
             type="date"
@@ -393,7 +393,7 @@ function reportPage(host, profile) {
         </label>
 
         <label class="required-field">
-          Nama pelapor <span class="required-star">*</span>
+          <span>Nama pelapor <span class="required-star">*</span></span>
           <input
             name="namaPelapor"
             value="${escapeHtml(profile?.nama || "")}"
@@ -410,7 +410,7 @@ function reportPage(host, profile) {
         </div>
 
         <label class="required-field">
-          Nama terlapor <span class="required-star">*</span>
+          <span>Nama terlapor <span class="required-star">*</span></span>
           <input
             name="namaTerlapor"
             maxlength="120"
@@ -419,7 +419,7 @@ function reportPage(host, profile) {
         </label>
 
         <label class="required-field">
-          Jabatan/unit terlapor <span class="required-star">*</span>
+          <span>Jabatan/unit terlapor <span class="required-star">*</span></span>
           <input
             name="jabatanTerlapor"
             maxlength="160"
@@ -428,7 +428,7 @@ function reportPage(host, profile) {
         </label>
 
         <label class="full required-field">
-          Uraian kejadian <span class="required-star">*</span>
+          <span>Uraian kejadian <span class="required-star">*</span></span>
           <textarea
             name="uraian"
             required
@@ -441,7 +441,7 @@ function reportPage(host, profile) {
 
         <div class="full evidence-input-area">
           <label for="evidenceFiles">
-            Foto bukti kejadian <span class="required-star">*</span>
+            <span>Foto bukti kejadian <span class="required-star">*</span></span>
           </label>
 
           <p class="muted tiny">
