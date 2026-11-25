@@ -179,3 +179,10 @@
     flex-direction: column;
   }
 }
+
+.required-field::after {
+  content: "*";
+  color: #dc2626;
+  font-weight: 800;
+  margin-left: 4px;
+}
