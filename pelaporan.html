@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="id">
 <head>
@@ -8,57 +7,25 @@
   <meta name="description" content="Formulir Pelaporan SI-ETIK UPTD RSUD Kelas D Pondokgede">
   <title>Pelaporan Kasus | SI-ETIK</title>
   <link rel="stylesheet" href="./assets/css/main.css">
-  <link rel="manifest" href="./manifest.json">
 </head>
-
 <body class="public-page">
 <main class="public-wrap">
-
-  <a href="./index.html" class="back-link">← Kembali ke SI-ETIK</a>
-
   <section class="panel public-card">
-    <div class="brand-mark">✚</div>
+    <div class="brand-mark" aria-hidden="true">✚</div>
     <p class="eyebrow">UPTD RSUD KELAS D PONDOKGEDE</p>
-    <h1>Formulir Pelaporan</h1>
-
-    <p class="muted">
-      Gunakan formulir ini untuk menyampaikan dugaan permasalahan
-      etik atau disiplin keperawatan. Informasi ditangani secara
-      terbatas oleh pihak berwenang.
-    </p>
-
+    <h1>Formulir Pelaporan Kasus</h1>
+    <p class="muted">Sampaikan laporan dugaan permasalahan etik atau disiplin secara jujur dan bertanggung jawab. Laporan akan ditinjau oleh petugas yang berwenang.</p>
     <form id="publicReportForm" class="form-grid">
-
-      <label>
-        Jenis laporan
+      <label>Jenis laporan <span class="required-star">*</span>
         <select name="jenis" required>
-          <option value="">Pilih jenis</option>
-          <option>Etik</option>
-          <option>Disiplin</option>
-          <option>Etik dan Disiplin</option>
+          <option value="">Pilih jenis</option><option>Etik</option><option>Disiplin</option><option>Etik dan Disiplin</option>
         </select>
       </label>
-
-      <label>
-        Identitas pelapor
-        <select name="modePelapor" id="modePelapor">
-          <option value="anonim">Anonim</option>
-          <option value="teridentifikasi">Teridentifikasi</option>
-        </select>
+      <label>Nama pelapor <span class="required-star">*</span>
+        <input name="namaPelapor" maxlength="120" required autocomplete="name" placeholder="Masukkan nama lengkap Anda">
       </label>
-
-      <div id="identityFields" class="full hidden">
-        <label>Nama pelapor</label>
-        <input name="namaPelapor" maxlength="120">
-
-        <label>Email/nomor kontak (opsional)</label>
-        <input name="kontakPelapor" maxlength="150">
-      </div>
-
-      <label>
-        Unit/lokasi kejadian
-        <select name="unit" required>
-          <option value="">Pilih unit/lokasi</option>
+      <label>Unit/lokasi kejadian <span class="required-star">*</span>
+        <select name="unit" required><option value="">Pilih unit/lokasi</option>
           <option>POLI BEDAH</option>
           <option>CSSD</option>
           <option>POLI GIGI &amp; MULUT</option>
@@ -101,48 +68,39 @@
           <option>POLI JIWA</option>
         </select>
       </label>
-
-      <label>
-        Tanggal kejadian
+      <label>Tanggal kejadian <span class="required-star">*</span>
         <input name="tanggalKejadian" type="date" required>
       </label>
-
-      <label class="full">
-        Uraian kejadian
-        <textarea
-          name="uraian"
-          rows="6"
-          required
-          minlength="20"
-          maxlength="6000"
-          placeholder="Tuliskan kronologi secara faktual, jelas, dan tidak menyertakan informasi yang tidak relevan."
-        ></textarea>
+      <div class="full">
+        <h3>Identitas pihak yang dilaporkan</h3>
+        <p class="muted tiny">Isi jika identitas pihak yang dilaporkan diketahui. Kolom ini bersifat opsional.</p>
+      </div>
+      <label>Nama terlapor
+        <input name="namaTerlapor" maxlength="120" placeholder="Nama perawat/pegawai yang dilaporkan (jika diketahui)">
       </label>
-
+      <label>Jabatan/unit terlapor
+        <input name="jabatanTerlapor" maxlength="160" placeholder="Jabatan atau unit kerja (jika diketahui)">
+      </label>
+      <label class="full">Uraian kejadian <span class="required-star">*</span>
+        <textarea name="uraian" rows="6" required minlength="20" maxlength="6000" placeholder="Tuliskan kronologi secara faktual, jelas, dan lengkap."></textarea>
+      </label>
+      <div class="full evidence-input-area">
+        <label for="publicEvidenceFiles">Foto bukti kejadian</label>
+        <p class="muted tiny">Pilih maksimal 3 foto. Foto akan dikompres otomatis sebelum dikirim. Format JPG, PNG, atau WebP.</p>
+        <input id="publicEvidenceFiles" type="file" accept="image/*" multiple>
+        <div id="publicEvidencePreview" class="evidence-preview"></div>
+        <p id="publicEvidenceInfo" class="tiny muted">Belum ada foto dipilih.</p>
+      </div>
       <label class="full check">
-        <input type="checkbox" required>
-        Saya menyatakan laporan ini disampaikan dengan itikad baik
-        dan informasi yang saya berikan benar menurut pengetahuan saya.
+        <input name="pernyataan" type="checkbox" required>
+        Saya menyatakan laporan ini disampaikan dengan itikad baik dan informasi yang saya berikan benar menurut pengetahuan saya.
       </label>
-
-      <button class="btn primary full" type="submit">
-        Kirim laporan
-      </button>
-
-      <p id="reportMessage" class="full muted" role="status"></p>
-
+      <button class="btn primary full" type="submit">Kirim laporan</button>
+      <p id="reportMessage" class="full muted" role="status" aria-live="polite"></p>
     </form>
-
-    <p class="tiny muted">
-      Jangan masukkan diagnosis, nomor rekam medis, foto pasien,
-      atau data pribadi pasien kecuali benar-benar diperlukan
-      dan telah disetujui sesuai kebijakan rumah sakit.
-    </p>
-
+    <p class="tiny muted">Hindari mencantumkan diagnosis, nomor rekam medis, atau data pribadi pasien yang tidak diperlukan dalam laporan.</p>
   </section>
 </main>
-
 <script type="module" src="./assets/js/public-report.js"></script>
-
 </body>
 </html>
