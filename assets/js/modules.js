@@ -364,7 +364,7 @@ function reportPage(host, profile) {
     <section class="panel">
       <form id="internalReport" class="form-grid">
 
-        <label>
+        <label class="required-field">
           Jenis laporan
           <select name="jenis" required>
             <option value="Etik">Etik</option>
@@ -375,7 +375,7 @@ function reportPage(host, profile) {
           </select>
         </label>
 
-        <label>
+        <label class="required-field">
           Unit/lokasi
           <select name="unit" required>
             <option value="">Pilih unit/lokasi</option>
@@ -383,7 +383,7 @@ function reportPage(host, profile) {
           </select>
         </label>
 
-        <label>
+        <label class="required-field">
           Tanggal kejadian
           <input
             name="tanggalKejadian"
@@ -392,22 +392,13 @@ function reportPage(host, profile) {
           >
         </label>
 
-        <label>
+        <label class="required-field">
           Nama pelapor
           <input
             name="namaPelapor"
             value="${escapeHtml(profile?.nama || "")}"
             maxlength="120"
             required
-          >
-        </label>
-
-        <label>
-          Kontak pelapor
-          <input
-            name="kontakPelapor"
-            maxlength="160"
-            placeholder="Nomor telepon atau email (opsional)"
           >
         </label>
                 
@@ -419,7 +410,7 @@ function reportPage(host, profile) {
           </p>
         </div>
 
-        <label>
+        <label class="required-field">
           Nama terlapor
           <input
             name="namaTerlapor"
@@ -428,16 +419,7 @@ function reportPage(host, profile) {
           >
         </label>
 
-        <label>
-          Kontak terlapor
-          <input
-            name="kontakTerlapor"
-            maxlength="160"
-            placeholder="Nomor telepon atau email (opsional)"
-          >
-        </label>
-
-        <label>
+        <label class="required-field">
           Jabatan/unit terlapor
           <input
             name="jabatanTerlapor"
@@ -446,7 +428,7 @@ function reportPage(host, profile) {
           >
         </label>
 
-        <label class="full">
+        <label class="full required-field">
           Uraian kejadian
           <textarea
             name="uraian"
