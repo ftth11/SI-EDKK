@@ -60,7 +60,7 @@ if (!form) {
 
   function readSelectedFiles() {
     const input =
-      getField("evidence", "fotoBukti", "foto", "photos", "bukti");
+      getField("publicEvidenceFiles", "evidence", "fotoBukti", "foto", "photos", "bukti");
     if (!input) return [];
     return Array.from(input.files || []);
   }
