@@ -33,8 +33,9 @@ if (!form) {
     form.querySelector('[type="submit"]') ||
     document.querySelector("#btnKirim, #submitReport, [data-submit-report]");
 
-  const statusElement =
-    document.querySelector("#formMessage, #statusMessage, #submitMessage, [data-form-message]");
+  const statusElement = document.querySelector(
+    "#reportMessage, #formMessage, #statusMessage, #submitMessage, [data-form-message]"
+  );
 
   function showMessage(message, type = "info") {
     if (statusElement) {
@@ -60,15 +61,7 @@ if (!form) {
 
   function readSelectedFiles() {
     const input = document.getElementById("publicEvidenceFiles");
-  
-    if (!input) {
-      console.error("Input foto publicEvidenceFiles tidak ditemukan.");
-      return [];
-    }
-  
-    console.log("Jumlah foto dipilih:", input.files.length);
-  
-    return Array.from(input.files || []);
+    return input ? Array.from(input.files || []) : [];
   }
 
   function canvasBlob(canvas, type, quality) {
@@ -135,8 +128,20 @@ if (!form) {
     const jabatanTerlapor = getValue("jabatanTerlapor", "jabatan_terlapor");
     const uraian = getValue("uraian");
 
+    const pernyataan = getField("pernyataan");
+
     if (!jenis || !unit || !tanggalKejadian || !namaPelapor || !uraian) {
-      showMessage("Mohon lengkapi seluruh kolom wajib, termasuk nama pelapor.", "error");
+      showMessage("Mohon lengkapi jenis laporan, nama pelapor, unit, tanggal, dan uraian kejadian.", "error");
+      return;
+    }
+    
+    if (uraian.length < 20) {
+      showMessage("Uraian kejadian minimal 20 karakter.", "error");
+      return;
+    }
+    
+    if (!pernyataan?.checked) {
+      showMessage("Mohon centang pernyataan sebelum mengirim laporan.", "error");
       return;
     }
 
